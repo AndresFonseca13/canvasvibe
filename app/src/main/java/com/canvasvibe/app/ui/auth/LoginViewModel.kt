@@ -12,6 +12,7 @@ sealed class AuthState {
     object Idle    : AuthState()
     object Loading : AuthState()
     data class Success(val user: User) : AuthState()
+    data class Registered(val user: User) : AuthState()
     data class Error(val message: String) : AuthState()
 }
 
@@ -36,10 +37,12 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             _state.value = AuthState.Loading
             val result = repo.register(email, password, name, role)
-            _state.value = if (result.isSuccess)
-                AuthState.Success(result.getOrThrow())
-            else
+            _state.value = if (result.isSuccess) {
+                repo.logout()
+                AuthState.Registered(result.getOrThrow())
+            } else {
                 AuthState.Error(result.exceptionOrNull()?.message ?: "Error desconocido")
+            }
         }
     }
 
