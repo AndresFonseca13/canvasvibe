@@ -2,8 +2,11 @@ package com.canvasvibe.app.data.model
 
 data class Order(
     val id: String = "",
+    val buyerId: String = "",
+    val buyerName: String = "",
     val sellerId: String = "",
-    val product: String = "",
+    val sellerName: String = "",
+    val productId: String = "",
     val productTitle: String = "",
     val productImageUrl: String = "",
     val material: String = "",
@@ -11,7 +14,7 @@ data class Order(
     val quantity: Int = 0,
     val unitPrice: Long = 0L,
     val totalPrice: Long = 0L,
-    val status: String = "PENDING",  // PENDING, PREPARING, SHIPPED, DELIVERED, CANCELED
+    val status: String = "PENDING",  // PENDING, PREPARING, SHIPPED, DELIVERED, CANCELLED
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

@@ -3,6 +3,7 @@ package com.canvasvibe.app.ui.buyer.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +31,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.canvasvibe.app.data.model.Product
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
 import com.canvasvibe.app.ui.theme.PrimaryAccent
@@ -37,46 +41,47 @@ import com.canvasvibe.app.ui.theme.SurfaceDark
 import com.canvasvibe.app.ui.theme.TextPrimary
 import com.canvasvibe.app.ui.theme.TextSecondary
 
-data class FeaturedArt(
-    val title: String,
-    val author: String?,
-    val price: String,
-    val startColor: Color,
-    val endColor: Color,
-    val big: Boolean
-)
+private data class CategoryTab(val label: String, val firestoreKey: String?)
 
-private val demoFeatured = listOf(
-    FeaturedArt(
-        title = "Neón Urbano #12",
-        author = "by Ana Rojas",
-        price = "COP \$220.000",
-        startColor = Color(0xFF2A2A2A),
-        endColor = Primary,
-        big = true
-    ),
-    FeaturedArt(
-        title = "Aurora Geométrica",
-        author = null,
-        price = "COP \$145.000",
-        startColor = Color(0xFF1F1F1F),
-        endColor = PrimaryAccent,
-        big = false
-    )
+private val categoryTabs = listOf(
+    CategoryTab("Destacados", null),
+    CategoryTab("Gamer", "gamer"),
+    CategoryTab("Paisajes", "paisajes"),
+    CategoryTab("Animales", "animales"),
+    CategoryTab("Anime", "anime"),
+    CategoryTab("Abstracto", "abstracto")
 )
 
 @Composable
-fun BuyerHomeScreen(userName: String = "") {
+fun BuyerHomeScreen(
+    onProductClick: (String) -> Unit,
+    onCartClick: () -> Unit,
+    userName: String = "",
+    viewModel: BuyerHomeViewModel = viewModel()
+) {
+    val products by viewModel.products.collectAsStateWithLifecycle()
+    val query by viewModel.query.collectAsStateWithLifecycle()
+
     var selectedTab by remember { mutableStateOf(0) }
-    var search      by remember { mutableStateOf("") }
-    var categoryIx  by remember { mutableStateOf(0) }
+    var categoryIx by remember { mutableStateOf(0) }
+
+    val filtered = remember(products, query) {
+        if (query.isBlank()) products
+        else products.filter {
+            it.title.contains(query, ignoreCase = true) ||
+                it.sellerName.contains(query, ignoreCase = true)
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        TopBar(initial = userName.firstOrNull()?.uppercaseChar()?.toString() ?: "")
+        TopBar(
+            initial = userName.firstOrNull()?.uppercaseChar()?.toString() ?: "",
+            onCartClick = onCartClick
+        )
 
         Column(
             modifier = Modifier
@@ -85,25 +90,42 @@ fun BuyerHomeScreen(userName: String = "") {
                 .padding(horizontal = 20.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SearchField(value = search, onValueChange = { search = it })
+            SearchField(value = query, onValueChange = viewModel::setQuery)
             CategoryChips(
-                items = listOf("Destacados", "Ilustración", "3D", "Pintura"),
+                items = categoryTabs.map { it.label },
                 selectedIndex = categoryIx,
-                onSelect = { categoryIx = it }
+                onSelect = { ix ->
+                    categoryIx = ix
+                    viewModel.selectCategory(categoryTabs[ix].firestoreKey)
+                }
             )
-            demoFeatured.forEach { art -> FeaturedCard(art) }
+
+            if (filtered.isEmpty()) {
+                EmptyState()
+            } else {
+                filtered.forEachIndexed { index, product ->
+                    ProductCard(
+                        product = product,
+                        big = index == 0,
+                        onClick = { onProductClick(product.id) }
+                    )
+                }
+            }
             Spacer(Modifier.height(8.dp))
         }
 
         BuyerBottomNav(
             selectedIndex = selectedTab,
-            onSelect = { selectedTab = it }
+            onSelect = { ix ->
+                selectedTab = ix
+                if (ix == 2) onCartClick()
+            }
         )
     }
 }
 
 @Composable
-private fun TopBar(initial: String) {
+private fun TopBar(initial: String, onCartClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -118,21 +140,42 @@ private fun TopBar(initial: String) {
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold
         )
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(SurfaceDark)
-                .border(1.dp, BorderSubtle, CircleShape),
-            contentAlignment = Alignment.Center
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (initial.isNotBlank()) {
-                Text(
-                    text = initial,
-                    color = PrimaryAccent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(SurfaceDark)
+                    .border(1.dp, BorderSubtle, CircleShape)
+                    .clickable { onCartClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ShoppingCart,
+                    contentDescription = "Carrito",
+                    tint = PrimaryAccent,
+                    modifier = Modifier.size(16.dp)
                 )
+            }
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(SurfaceDark)
+                    .border(1.dp, BorderSubtle, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (initial.isNotBlank()) {
+                    Text(
+                        text = initial,
+                        color = PrimaryAccent,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
@@ -187,7 +230,12 @@ private fun CategoryChips(
     selectedIndex: Int,
     onSelect: (Int) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         items.forEachIndexed { index, label ->
             val isSelected = index == selectedIndex
             Box(
@@ -215,14 +263,21 @@ private fun CategoryChips(
 }
 
 @Composable
-private fun FeaturedCard(art: FeaturedArt) {
-    val imageHeight = if (art.big) 180.dp else 150.dp
+private fun ProductCard(
+    product: Product,
+    big: Boolean,
+    onClick: () -> Unit
+) {
+    val imageHeight = if (big) 180.dp else 150.dp
+    val start = SurfaceDark
+    val end = if (big) Primary else PrimaryAccent
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(SurfaceDark)
             .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -231,13 +286,9 @@ private fun FeaturedCard(art: FeaturedArt) {
                 .fillMaxWidth()
                 .height(imageHeight)
                 .clip(RoundedCornerShape(14.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(art.startColor, art.endColor)
-                    )
-                )
+                .background(Brush.linearGradient(colors = listOf(start, end)))
         ) {
-            if (art.big) {
+            if (big) {
                 Box(
                     modifier = Modifier
                         .padding(start = 24.dp, top = 28.dp)
@@ -253,29 +304,13 @@ private fun FeaturedCard(art: FeaturedArt) {
                         .clip(CircleShape)
                         .border(12.dp, Color.White.copy(alpha = 0.2f), CircleShape)
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .padding(start = 30.dp, top = 30.dp)
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Primary)
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(end = 30.dp, top = 35.dp)
-                        .size(90.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.13f))
-                )
             }
         }
 
         Text(
-            text = art.title,
+            text = product.title.ifBlank { "Obra sin título" },
             color = TextPrimary,
-            fontSize = if (art.big) 18.sp else 15.sp,
+            fontSize = if (big) 18.sp else 15.sp,
             fontWeight = FontWeight.SemiBold
         )
 
@@ -284,18 +319,37 @@ private fun FeaturedCard(art: FeaturedArt) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (art.author != null) {
-                Text(text = art.author, color = TextSecondary, fontSize = 13.sp)
-            } else {
-                Spacer(Modifier.width(0.dp))
-            }
             Text(
-                text = art.price,
+                text = product.sellerName.ifBlank { "Artista" },
+                color = TextSecondary,
+                fontSize = 13.sp
+            )
+            Text(
+                text = formatCop(product.priceBase),
                 color = TextPrimary,
-                fontSize = if (art.big) 16.sp else 14.sp,
+                fontSize = if (big) 16.sp else 14.sp,
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+}
+
+@Composable
+private fun EmptyState() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(SurfaceDark)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Aún no hay obras en esta categoría",
+            color = TextSecondary,
+            fontSize = 13.sp
+        )
     }
 }
 
@@ -350,4 +404,16 @@ private fun BuyerBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
             }
         }
     }
+}
+
+internal fun formatCop(value: Long): String {
+    if (value <= 0L) return "COP \$0"
+    val digits = value.toString()
+    val withSeparators = buildString {
+        digits.reversed().forEachIndexed { i, c ->
+            if (i > 0 && i % 3 == 0) append('.')
+            append(c)
+        }
+    }.reversed()
+    return "COP \$$withSeparators"
 }

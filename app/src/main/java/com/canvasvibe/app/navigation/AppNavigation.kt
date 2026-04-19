@@ -4,21 +4,32 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.canvasvibe.app.ui.admin.artists.AdminArtistScreen
+import com.canvasvibe.app.ui.admin.categories.AdminCategoriesScreen
+import com.canvasvibe.app.ui.admin.dashboard.AdminDashboardScreen
+import com.canvasvibe.app.ui.admin.reports.AdminReportsScreen
 import com.canvasvibe.app.ui.auth.LoginScreen
+import com.canvasvibe.app.ui.buyer.cart.CartScreen
+import com.canvasvibe.app.ui.buyer.detail.ProductDetailScreen
 import com.canvasvibe.app.ui.buyer.home.BuyerHomeScreen
+import com.canvasvibe.app.ui.buyer.tracking.OrderTrackingScreen
+import com.canvasvibe.app.ui.seller.addproduct.AddProductScreen
+import com.canvasvibe.app.ui.seller.dashboard.SellerDashboardScreen
+import com.canvasvibe.app.ui.seller.orders.SellerOrdersScreen
+import com.canvasvibe.app.ui.seller.profile.SellerProfileScreen
 
 @Composable
 fun AppNavigation() {
 
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = Screen.Login.route){
+    NavHost(navController = navController, startDestination = Screen.Login.route) {
 
-        composable(Screen.Login.route){
+        composable(Screen.Login.route) {
             LoginScreen(onLoginSuccess = { user ->
-                val  dest = when (user.role) {
-                    "ROLER_SELLER" -> Screen.SellerDashboard.route
-                    "ROLLER_ADMIN" -> Screen.AdminDashboard.route
+                val dest = when (user.role) {
+                    "ROLE_SELLER" -> Screen.SellerDashboard.route
+                    "ROLE_ADMIN" -> Screen.AdminDashboard.route
                     else -> Screen.BuyerHome.route
                 }
                 navController.navigate(dest) {
@@ -36,13 +47,21 @@ fun AppNavigation() {
 
         composable(Screen.ProductDetail.route) { backStack ->
             val productId = backStack.arguments?.getString("productId") ?: ""
-            ProductDetailScreen(productId = productId, onBack = { navController.popBackStack() })
+            ProductDetailScreen(
+                productId = productId,
+                onBack = { navController.popBackStack() },
+                onCartClick = { navController.navigate(Screen.Cart.route) }
+            )
         }
 
-        composable(Screen.Cart.route){
+        composable(Screen.Cart.route) {
             CartScreen(
                 onBack = { navController.popBackStack() },
-                OnOrderPlaced = { orderId -> navController.navigate(Screen.OrderTracking.createRoute(orderId)) }
+                onOrderPlaced = { orderId ->
+                    navController.navigate(Screen.OrderTracking.createRoute(orderId)) {
+                        popUpTo(Screen.BuyerHome.route)
+                    }
+                }
             )
         }
 
@@ -54,8 +73,8 @@ fun AppNavigation() {
         composable(Screen.SellerDashboard.route) {
             SellerDashboardScreen(
                 onOrdersClick = { navController.navigate(Screen.SellerOrders.route) },
-                onAddProductClick = { navController.navigate(Screen.AddProduct.route) }
-                onProfileClick = { navController.navigate(Screen.SellerProfile.route)}
+                onAddProductClick = { navController.navigate(Screen.AddProduct.route) },
+                onProfileClick = { navController.navigate(Screen.SellerProfile.route) }
             )
         }
 
@@ -63,7 +82,7 @@ fun AppNavigation() {
             AddProductScreen(onBack = { navController.popBackStack() })
         }
 
-        composable(Screen.SellerOrders.route){
+        composable(Screen.SellerOrders.route) {
             SellerOrdersScreen(onBack = { navController.popBackStack() })
         }
 
@@ -90,7 +109,5 @@ fun AppNavigation() {
         composable(Screen.AdminReports.route) {
             AdminReportsScreen(onBack = { navController.popBackStack() })
         }
-
     }
-
 }

@@ -1,0 +1,133 @@
+🟠 FASE 4 — Pantallas del Comprador
+El flujo principal del negocio
+Paso 11 — Refinar BuyerHomeScreen
+La que ya tienes funciona bien visualmente. Agrégale:
+
+BuyerHomeViewModel que cargue productos reales de Firestore con ProductRepository
+Pasar onProductClick: (String) -> Unit y onCartClick: () -> Unit como parámetros (ya están en el AppNavigation)
+Hacer que los chips de categorías filtren los productos reales
+
+Paso 12 — Crear ui/buyer/detail/ProductDetailScreen.kt
+Contenido:
+
+Top bar con flecha atrás + íconos ♡ y ⋮
+Imagen principal 16:9 con placeholder por color de categoría
+Tira de miniaturas si hay más de una imagen
+Nombre del producto (18sp Bold), artista, rating con ⭐ amarillos
+Precio en COP ($185.000 COP)
+Chips seleccionables de Material
+Chips seleccionables de Tamaño
+Descripción
+Dos botones al pie: "♡ Favoritos" (outline) + "Agregar al carrito" (primario)
+ProductDetailViewModel que cargue el producto por ID y añada al carrito
+
+Paso 13 — Crear ui/buyer/cart/CartScreen.kt
+Contenido:
+
+Top bar "Mi Carrito (N)"
+Lista de CartItem: imagen, nombre, artista, precio, control [– qty +]
+Card resumen: subtotal, envío ($15.000), descuento, TOTAL en morado
+Botón "Proceder al pago →"
+CartViewModel que lea y modifique el carrito desde CartRepository
+
+Paso 14 — Crear ui/buyer/tracking/OrderTrackingScreen.kt
+Contenido:
+
+Número de pedido + chip de estado
+Placeholder de mapa (Card oscura con gradiente verde)
+Timeline vertical 5 pasos: Confirmado → En preparación → Recogido → En camino → Entregado
+Cada paso: círculo de color (morado si completado, gris si pendiente), línea vertical, texto, hora
+OrderTrackingViewModel que escuche cambios del pedido en tiempo real
+
+
+🔴 FASE 5 — Pantallas del Vendedor
+Paso 15 — Crear ui/seller/dashboard/SellerDashboardScreen.kt
+Contenido:
+
+Saludo "Bienvenido, [nombre] 👋"
+Grid 2×2 de KPIs: ventas del mes, pedidos activos, productos publicados, calificación promedio
+Sección "Pedidos recientes" (3 últimos) con chips de estado
+Bottom nav: Dashboard / Pedidos / Publicar / Estadísticas / Perfil
+SellerDashboardViewModel que agregue datos desde Firestore
+
+Paso 16 — Crear ui/seller/addproduct/AddProductScreen.kt
+Contenido:
+
+Zona de carga de fotos con borde punteado morado (hasta 5 fotos)
+Campos: nombre, descripción, dropdown material, multiselección tamaños
+Campo precio COP, tiempo de elaboración, stock
+Toggle "Disponible para personalización"
+Botón "PUBLICAR PRODUCTO"
+AddProductViewModel que suba imágenes a Firebase Storage y guarde en Firestore
+
+Paso 17 — Crear ui/seller/orders/SellerOrdersScreen.kt
+Contenido:
+
+Tabs: Todos / Pendiente / Preparando / Enviado / Entregado
+Cards de pedido: número, producto, comprador, precio, chip estado
+Botón "Actualizar estado →" que abra un dialog con los estados posibles
+SellerOrdersViewModel
+
+Paso 18 — Crear ui/seller/profile/SellerProfileScreen.kt
+Contenido:
+
+Header: avatar circular con borde morado, nombre artístico, especialidad
+Row de stats: reseñas, calificación, obras publicadas, ventas totales
+Sección bio (texto editable)
+Grid 3 columnas con miniaturas de sus productos
+Lista de configuración: editar info, datos bancarios, notificaciones, contraseña, cerrar sesión
+
+
+🟣 FASE 6 — Pantallas del Administrador
+Paso 19 — Crear ui/admin/dashboard/AdminDashboardScreen.kt
+Contenido:
+
+KPIs globales: usuarios totales, ventas totales, pedidos activos, artistas verificados
+Gráfica de barras simple (7 barras, una por día) — puedes usar Canvas de Compose
+Grid 2×2 de accesos rápidos: Gestionar Artistas, Ver Pedidos, Categorías, Reportes
+
+Paso 20 — Crear ui/admin/artists/AdminArtistsScreen.kt
+Contenido:
+
+Barra de búsqueda
+Tabs: Todos / Verificados / Pendientes / Suspendidos
+Cards de artista: avatar, nombre, métricas, chip de estado
+Botones [Ver detalle] [Verificar / Suspender]
+
+Paso 21 — Crear ui/admin/categories/AdminCategoriesScreen.kt
+Contenido:
+
+Lista de las 5 categorías (Gamer, Paisajes, Animales, Anime, Abstracto)
+Cada fila: ícono de color, nombre, cantidad de productos, toggle on/off, ícono editar
+FAB (+) en esquina inferior derecha para nueva categoría
+
+Paso 22 — Crear ui/admin/reports/AdminReportsScreen.kt
+Contenido:
+
+Chips de período: Hoy / Semana / Mes / Año
+Card ventas totales con variación porcentual
+Gráfica de línea (usando Canvas de Compose)
+Top 3 productos más vendidos
+Top 3 artistas
+Botones exportar PDF / CSV
+
+
+⚫ FASE 7 — Funcionalidades extra (post-pantallas)
+Paso 23 — Autenticación biométrica
+
+Usar androidx.biometric:biometric
+Mostrar BiometricPrompt si el usuario ya tiene sesión activa al abrir la app
+Crear BiometricScreen.kt con avatar, saludo y animación de huella
+
+Paso 24 — Subida de imágenes (Firebase Storage)
+
+Usar ActivityResultContracts.GetMultipleContents() para seleccionar fotos
+Subir cada imagen a /products/{sellerId}/{productId}/imagen_N.jpg
+Guardar las URLs en el campo imageUrls del producto en Firestore
+
+Paso 25 — Notificaciones push (FCM)
+
+Ya tienes firebase-messaging como dependencia
+Crear CanvasVibeMessagingService que extienda FirebaseMessagingService
+Declararlo en AndroidManifest.xml
+Guardar el token FCM en users/{uid}.fcmToken al iniciar sesión

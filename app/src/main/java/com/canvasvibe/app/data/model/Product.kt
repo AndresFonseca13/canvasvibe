@@ -1,8 +1,9 @@
 package com.canvasvibe.app.data.model
 
-data class Product (
-    val id: String ="",
+data class Product(
+    val id: String = "",
     val sellerId: String = "",
+    val sellerName: String = "",
     val title: String = "",
     val description: String = "",
     val category: String = "",
@@ -17,4 +18,4 @@ data class Product (
     val isCustomizable: Boolean = true,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
-    )
+)
