@@ -11,11 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,14 +22,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.canvasvibe.app.data.model.Product
+import com.canvasvibe.app.ui.buyer.components.BuyerBottomNav
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
 import com.canvasvibe.app.ui.theme.PrimaryAccent
@@ -43,27 +41,37 @@ import com.canvasvibe.app.ui.theme.TextSecondary
 
 private data class CategoryTab(val label: String, val firestoreKey: String?)
 
-private val categoryTabs = listOf(
-    CategoryTab("Destacados", null),
-    CategoryTab("Gamer", "gamer"),
-    CategoryTab("Paisajes", "paisajes"),
-    CategoryTab("Animales", "animales"),
-    CategoryTab("Anime", "anime"),
-    CategoryTab("Abstracto", "abstracto")
-)
-
 @Composable
 fun BuyerHomeScreen(
     onProductClick: (String) -> Unit,
     onCartClick: () -> Unit,
+    onProfileClick: () -> Unit = {},
+    onLogout: () -> Unit = {},
     userName: String = "",
     viewModel: BuyerHomeViewModel = viewModel()
 ) {
     val products by viewModel.products.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
+    val dynamicCategories by viewModel.categories.collectAsStateWithLifecycle()
+
+    val categoryTabs = remember(dynamicCategories) {
+        buildList {
+            add(CategoryTab("Destacados", null))
+            dynamicCategories.forEach {
+                add(CategoryTab("${it.emoji} ${it.name}".trim(), it.slug))
+            }
+        }
+    }
 
     var selectedTab by remember { mutableStateOf(0) }
     var categoryIx by remember { mutableStateOf(0) }
+
+    LaunchedEffect(categoryTabs.size) {
+        if (categoryIx >= categoryTabs.size) {
+            categoryIx = 0
+            viewModel.selectCategory(null)
+        }
+    }
 
     val filtered = remember(products, query) {
         if (query.isBlank()) products
@@ -80,20 +88,20 @@ fun BuyerHomeScreen(
     ) {
         TopBar(
             initial = userName.firstOrNull()?.uppercaseChar()?.toString() ?: "",
-            onCartClick = onCartClick
+            onAvatarClick = onProfileClick
         )
 
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 4.dp),
+                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SearchField(value = query, onValueChange = viewModel::setQuery)
             CategoryChips(
                 items = categoryTabs.map { it.label },
-                selectedIndex = categoryIx,
+                selectedIndex = categoryIx.coerceAtMost(categoryTabs.lastIndex.coerceAtLeast(0)),
                 onSelect = { ix ->
                     categoryIx = ix
                     viewModel.selectCategory(categoryTabs[ix].firestoreKey)
@@ -111,21 +119,24 @@ fun BuyerHomeScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
         }
 
         BuyerBottomNav(
             selectedIndex = selectedTab,
             onSelect = { ix ->
                 selectedTab = ix
-                if (ix == 2) onCartClick()
+                when (ix) {
+                    2 -> onCartClick()
+                    3 -> onProfileClick()
+                    else -> {}
+                }
             }
         )
     }
 }
 
 @Composable
-private fun TopBar(initial: String, onCartClick: () -> Unit) {
+private fun TopBar(initial: String, onAvatarClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -140,42 +151,22 @@ private fun TopBar(initial: String, onCartClick: () -> Unit) {
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(SurfaceDark)
+                .border(1.dp, BorderSubtle, CircleShape)
+                .clickable { onAvatarClick() },
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceDark)
-                    .border(1.dp, BorderSubtle, CircleShape)
-                    .clickable { onCartClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ShoppingCart,
-                    contentDescription = "Carrito",
-                    tint = PrimaryAccent,
-                    modifier = Modifier.size(16.dp)
+            if (initial.isNotBlank()) {
+                Text(
+                    text = initial,
+                    color = PrimaryAccent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
-            }
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceDark)
-                    .border(1.dp, BorderSubtle, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                if (initial.isNotBlank()) {
-                    Text(
-                        text = initial,
-                        color = PrimaryAccent,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
             }
         }
     }
@@ -268,9 +259,6 @@ private fun ProductCard(
     big: Boolean,
     onClick: () -> Unit
 ) {
-    val imageHeight = if (big) 180.dp else 150.dp
-    val start = SurfaceDark
-    val end = if (big) Primary else PrimaryAccent
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -281,54 +269,124 @@ private fun ProductCard(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(imageHeight)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Brush.linearGradient(colors = listOf(start, end)))
-        ) {
-            if (big) {
-                Box(
-                    modifier = Modifier
-                        .padding(start = 24.dp, top = 28.dp)
-                        .size(58.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryAccent)
+        val coverUrl = product.imageUrls.firstOrNull()
+        if (big) FeaturedArtwork(coverUrl) else CompactArtwork(coverUrl)
+
+        if (big) {
+            Text(
+                text = product.title.ifBlank { "Obra sin título" },
+                color = TextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "by ${product.sellerName.ifBlank { "Artista" }}",
+                    color = TextSecondary,
+                    fontSize = 13.sp
                 )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 24.dp, bottom = 24.dp)
-                        .size(90.dp)
-                        .clip(CircleShape)
-                        .border(12.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                Text(
+                    text = formatCop(product.priceBase),
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = product.title.ifBlank { "Obra sin título" },
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = formatCop(product.priceBase),
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
+    }
+}
 
-        Text(
-            text = product.title.ifBlank { "Obra sin título" },
-            color = TextPrimary,
-            fontSize = if (big) 18.sp else 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = product.sellerName.ifBlank { "Artista" },
-                color = TextSecondary,
-                fontSize = 13.sp
+@Composable
+private fun FeaturedArtwork(imageUrl: String?) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.linearGradient(colors = listOf(BorderSubtle, Primary)))
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
             )
-            Text(
-                text = formatCop(product.priceBase),
-                color = TextPrimary,
-                fontSize = if (big) 16.sp else 14.sp,
-                fontWeight = FontWeight.Bold
+        } else {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 24.dp, y = 28.dp)
+                    .size(58.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryAccent)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-20).dp, y = (-8).dp)
+                    .size(90.dp)
+                    .border(20.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactArtwork(imageUrl: String?) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.verticalGradient(colors = listOf(SurfaceDark, PrimaryAccent)))
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 30.dp, y = 30.dp)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Primary)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-30).dp, y = 30.dp)
+                    .size(90.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.13f))
             )
         }
     }
@@ -350,59 +408,6 @@ private fun EmptyState() {
             color = TextSecondary,
             fontSize = 13.sp
         )
-    }
-}
-
-private data class NavItem(
-    val label: String,
-    val iconActive: ImageVector,
-    val iconInactive: ImageVector
-)
-
-@Composable
-private fun BuyerBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    val items = listOf(
-        NavItem("Inicio",   Icons.Filled.Home,         Icons.Filled.Home),
-        NavItem("Explorar", Icons.Filled.Explore,      Icons.Filled.Explore),
-        NavItem("Carrito",  Icons.Filled.ShoppingCart, Icons.Filled.ShoppingCart),
-        NavItem("Perfil",   Icons.Filled.Person,       Icons.Filled.Person)
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .background(SurfaceDark)
-            .border(width = 1.dp, color = BorderSubtle, shape = RoundedCornerShape(0.dp))
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        items.forEachIndexed { index, item ->
-            val selected = index == selectedIndex
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (selected) Primary.copy(alpha = 0.125f) else Color.Transparent)
-                    .clickable { onSelect(index) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = if (selected) item.iconActive else item.iconInactive,
-                    contentDescription = item.label,
-                    tint = if (selected) Primary else TextSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = item.label,
-                    color = if (selected) Primary else TextSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                )
-            }
-        }
     }
 }
 

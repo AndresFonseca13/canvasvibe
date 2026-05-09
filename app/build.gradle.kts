@@ -65,4 +65,6 @@ dependencies {
     implementation(libs.firebase.analytics)
     // Coroutines interop con Firebase Tasks (.await())
     implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.androidx.biometric)
+    implementation(libs.coil.compose)
 }

@@ -9,10 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,12 +21,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import coil.compose.AsyncImage
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.canvasvibe.app.data.model.Product
+import com.canvasvibe.app.ui.buyer.components.BuyerBottomNav
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
 import com.canvasvibe.app.ui.theme.PrimaryAccent
@@ -63,18 +65,24 @@ fun ProductDetailScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         DetailTopBar(onBack = onBack)
-        when (val s = state) {
-            is ProductDetailUiState.Loading -> LoadingBox()
-            is ProductDetailUiState.Error -> ErrorBox(s.message)
-            is ProductDetailUiState.Ready -> DetailContent(
-                product = s.product,
-                selectedMaterial = material,
-                selectedSize = size,
-                onSelectMaterial = viewModel::selectMaterial,
-                onSelectSize = viewModel::selectSize,
-                onAddToCart = viewModel::addToCart
-            )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (val s = state) {
+                is ProductDetailUiState.Loading -> LoadingBox()
+                is ProductDetailUiState.Error -> ErrorBox(s.message)
+                is ProductDetailUiState.Ready -> DetailContent(
+                    product = s.product,
+                    selectedMaterial = material,
+                    selectedSize = size,
+                    onSelectMaterial = viewModel::selectMaterial,
+                    onSelectSize = viewModel::selectSize,
+                    onAddToCart = viewModel::addToCart
+                )
+            }
         }
+        BuyerBottomNav(
+            selectedIndex = 1,
+            onSelect = { ix -> if (ix == 0) onBack() }
+        )
     }
 }
 
@@ -84,31 +92,21 @@ private fun DetailTopBar(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        IconPill(icon = {
-            Icon(
-                imageVector = Icons.Filled.ArrowBack,
-                contentDescription = "Atrás",
-                tint = TextPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-        }, onClick = onBack)
-
         Text(
             text = "Detalle",
             color = TextPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
         )
-
         IconPill(icon = {
             Icon(
                 imageVector = Icons.Filled.MoreVert,
                 contentDescription = "Opciones",
-                tint = TextPrimary,
+                tint = TextSecondary,
                 modifier = Modifier.size(18.dp)
             )
         }, onClick = {})
@@ -144,7 +142,7 @@ private fun DetailContent(
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        HeroImage()
+        HeroImage(imageUrl = product.imageUrls.firstOrNull())
         Text(
             text = product.title.ifBlank { "Obra sin título" },
             color = TextPrimary,
@@ -152,11 +150,10 @@ private fun DetailContent(
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "${product.sellerName.ifBlank { "Artista" }} · Edición única",
+            text = "${product.sellerName.ifBlank { "Artista" }} · Edición 1/20",
             color = TextSecondary,
             fontSize = 13.sp
         )
-        RatingRow(rating = product.rating, reviews = product.reviewCount)
 
         if (product.description.isNotBlank()) {
             Text(
@@ -192,7 +189,7 @@ private fun DetailContent(
 }
 
 @Composable
-private fun HeroImage() {
+private fun HeroImage(imageUrl: String?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,25 +197,44 @@ private fun HeroImage() {
             .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.linearGradient(
-                    colors = listOf(SurfaceDark, Primary)
+                    0f to Color(0xFF292929),
+                    0.5f to Primary,
+                    1f to SurfaceDark
                 )
             )
     ) {
-        Box(
-            modifier = Modifier
-                .padding(start = 28.dp, top = 32.dp)
-                .size(74.dp)
-                .clip(CircleShape)
-                .background(PrimaryAccent)
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 28.dp, bottom = 28.dp)
-                .size(110.dp)
-                .clip(CircleShape)
-                .border(14.dp, Color.White.copy(alpha = 0.18f), CircleShape)
-        )
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 20.dp, y = 24.dp)
+                    .size(74.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryAccent)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 128.dp, y = 90.dp)
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.094f))
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 240.dp, y = 170.dp)
+                    .size(100.dp)
+                    .border(21.dp, Color.White.copy(alpha = 0.27f), CircleShape)
+            )
+        }
     }
 }
 
@@ -266,27 +282,6 @@ private fun ChipRow(
 }
 
 @Composable
-private fun RatingRow(rating: Double, reviews: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        repeat(5) { index ->
-            val filled = index < rating.toInt()
-            Icon(
-                imageVector = Icons.Filled.Star,
-                contentDescription = null,
-                tint = if (filled) Color(0xFFFFC107) else BorderSubtle,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = if (reviews > 0) "$rating ($reviews reseñas)" else "Sin reseñas",
-            color = TextSecondary,
-            fontSize = 12.sp
-        )
-    }
-}
-
-@Composable
 private fun PriceRow(priceBase: Long) {
     Row(
         modifier = Modifier
@@ -295,7 +290,7 @@ private fun PriceRow(priceBase: Long) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "Precio", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "Precio", color = TextSecondary, fontSize = 14.sp)
         Text(
             text = com.canvasvibe.app.ui.buyer.home.formatCop(priceBase),
             color = TextPrimary,

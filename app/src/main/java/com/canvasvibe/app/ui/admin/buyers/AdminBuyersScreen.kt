@@ -1,4 +1,4 @@
-package com.canvasvibe.app.ui.admin.artists
+package com.canvasvibe.app.ui.admin.buyers
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,8 +22,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,8 +33,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +47,7 @@ import com.canvasvibe.app.ui.admin.components.AdminBottomNav
 import com.canvasvibe.app.ui.theme.Background
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
+import com.canvasvibe.app.ui.theme.PrimaryAccent
 import com.canvasvibe.app.ui.theme.SurfaceDark
 import com.canvasvibe.app.ui.theme.TextPrimary
 import com.canvasvibe.app.ui.theme.TextSecondary
@@ -50,23 +55,24 @@ import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
-fun AdminArtistScreen(
+fun AdminBuyersScreen(
     onBack: () -> Unit,
     onDashboardClick: () -> Unit = onBack,
-    onBuyersClick: () -> Unit = {},
+    onArtistsClick: () -> Unit = {},
     onCategoriesClick: () -> Unit = {},
     onReportsClick: () -> Unit = {}
 ) {
-    val vm: AdminArtistViewModel = viewModel()
+    val vm: AdminBuyersViewModel = viewModel()
     val state by vm.state.collectAsStateWithLifecycle()
-    val visible = state.artists.applyFilters(state.tab, state.query)
+    val visible = state.buyers.applyFilters(state.tab, state.query)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
     ) {
-        TopBar()
+        TopBar(total = state.buyers.size)
+        state.errorMessage?.let { ErrorBanner(it) { vm.dismissError() } }
         SearchBox(state.query, vm::setQuery)
         TabsRow(state.tab, vm::selectTab)
 
@@ -77,19 +83,18 @@ fun AdminArtistScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (visible.isEmpty()) {
-                item { EmptyHint() }
+            if (state.isLoading) {
+                item { Text("Cargando compradores…", color = TextSecondary, fontSize = 13.sp) }
+            } else if (visible.isEmpty()) {
+                item { EmptyHint(state.tab) }
             } else {
-                items(visible, key = { it.uid }) { artist ->
-                    ArtistCard(
-                        artist = artist,
+                items(visible, key = { it.uid }) { buyer ->
+                    BuyerCard(
+                        buyer = buyer,
                         onPrimary = {
-                            val next = when (artist.status) {
-                                ArtistStatus.PENDIENTE   -> ArtistStatus.VERIFICADO
-                                ArtistStatus.VERIFICADO  -> ArtistStatus.SUSPENDIDO
-                                ArtistStatus.SUSPENDIDO  -> ArtistStatus.VERIFICADO
-                            }
-                            vm.changeStatus(artist.uid, next)
+                            val next = if (buyer.status == BuyerStatus.ACTIVO)
+                                BuyerStatus.BLOQUEADO else BuyerStatus.ACTIVO
+                            vm.changeStatus(buyer.uid, next)
                         }
                     )
                 }
@@ -98,11 +103,11 @@ fun AdminArtistScreen(
         }
 
         AdminBottomNav(
-            selectedIndex = 1,
+            selectedIndex = 2,
             onSelect = { ix ->
                 when (ix) {
                     0 -> onDashboardClick()
-                    2 -> onBuyersClick()
+                    1 -> onArtistsClick()
                     3 -> onCategoriesClick()
                     4 -> onReportsClick()
                     else -> {}
@@ -113,15 +118,64 @@ fun AdminArtistScreen(
 }
 
 @Composable
-private fun TopBar() {
+private fun TopBar(total: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(SurfaceDark)
             .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Artistas", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("Compradores", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(Primary.copy(alpha = 0.18f))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "$total registrados",
+                color = PrimaryAccent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF44336).copy(alpha = 0.16f))
+            .border(1.dp, Color(0xFFF44336).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = message,
+            color = Color(0xFFFF8A80),
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Cerrar",
+                tint = Color(0xFFFF8A80),
+                modifier = Modifier.size(14.dp)
+            )
+        }
     }
 }
 
@@ -153,7 +207,7 @@ private fun SearchBox(query: String, onChange: (String) -> Unit) {
             modifier = Modifier.weight(1f),
             decorationBox = { inner ->
                 if (query.isEmpty()) {
-                    Text("Buscar artista…", color = TextSecondary, fontSize = 13.sp)
+                    Text("Buscar por nombre o email…", color = TextSecondary, fontSize = 13.sp)
                 }
                 inner()
             }
@@ -162,7 +216,7 @@ private fun SearchBox(query: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun TabsRow(selected: ArtistTab, onSelect: (ArtistTab) -> Unit) {
+private fun TabsRow(selected: BuyerTab, onSelect: (BuyerTab) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,7 +224,7 @@ private fun TabsRow(selected: ArtistTab, onSelect: (ArtistTab) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ArtistTab.values().forEach { tab ->
+        BuyerTab.values().forEach { tab ->
             Pill(
                 label = tab.label(),
                 selected = selected == tab,
@@ -180,11 +234,10 @@ private fun TabsRow(selected: ArtistTab, onSelect: (ArtistTab) -> Unit) {
     }
 }
 
-private fun ArtistTab.label(): String = when (this) {
-    ArtistTab.TODOS        -> "Todos"
-    ArtistTab.VERIFICADOS  -> "Verificados"
-    ArtistTab.PENDIENTES   -> "Pendientes"
-    ArtistTab.SUSPENDIDOS  -> "Suspendidos"
+private fun BuyerTab.label(): String = when (this) {
+    BuyerTab.TODOS      -> "Todos"
+    BuyerTab.ACTIVOS    -> "Activos"
+    BuyerTab.BLOQUEADOS -> "Bloqueados"
 }
 
 @Composable
@@ -205,7 +258,8 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ArtistCard(artist: AdminArtist, onPrimary: () -> Unit) {
+private fun BuyerCard(buyer: AdminBuyer, onPrimary: () -> Unit) {
+    val isBlocked = buyer.status == BuyerStatus.BLOQUEADO
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -215,89 +269,84 @@ private fun ArtistCard(artist: AdminArtist, onPrimary: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(initial = artist.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A")
+            Avatar(
+                initial = buyer.name.firstOrNull()?.uppercaseChar()?.toString() ?: "C",
+                muted = isBlocked
+            )
             Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = artist.name,
+                    text = buyer.name,
                     color = TextPrimary,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
                 )
-                Text(
-                    text = artist.specialty.replaceFirstChar { it.uppercase() },
-                    color = TextSecondary,
-                    fontSize = 11.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = null,
-                        tint = Color(0xFFFFC107),
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(Modifier.size(4.dp))
+                if (buyer.email.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "%.1f".format(artist.rating),
-                        color = TextPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        text = "${artist.sales} ventas",
+                        text = buyer.email,
                         color = TextSecondary,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        maxLines = 1
                     )
-                    Spacer(Modifier.size(8.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatChip(icon = Icons.Filled.CheckCircle, label = "${buyer.orderCount} pedidos")
+                    Spacer(Modifier.size(6.dp))
                     Text(
-                        text = formatRevenue(artist.totalRevenueCop),
+                        text = formatRevenue(buyer.totalSpentCop),
                         color = TextSecondary,
                         fontSize = 11.sp
                     )
                 }
             }
-            StatusBadge(artist.status)
+            StatusBadge(buyer.status)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlineAction(label = "Ver detalle", color = Primary, modifier = Modifier.weight(1f), onClick = {})
-            val (label, color) = when (artist.status) {
-                ArtistStatus.PENDIENTE  -> "Verificar" to Color(0xFF4CAF50)
-                ArtistStatus.VERIFICADO -> "Suspender" to Color(0xFFF44336)
-                ArtistStatus.SUSPENDIDO -> "Reactivar" to Color(0xFF4CAF50)
-            }
-            OutlineAction(label = label, color = color, modifier = Modifier.weight(1f), onClick = onPrimary)
+            OutlineAction(
+                label = "Ver detalle",
+                color = Primary,
+                modifier = Modifier.weight(1f),
+                onClick = {}
+            )
+            OutlineAction(
+                label = if (isBlocked) "Desbloquear" else "Bloquear",
+                color = if (isBlocked) Color(0xFF4CAF50) else Color(0xFFF44336),
+                modifier = Modifier.weight(1f),
+                icon = if (isBlocked) Icons.Filled.CheckCircle else Icons.Filled.Block,
+                onClick = onPrimary
+            )
         }
     }
 }
 
 @Composable
-private fun OutlineAction(
-    label: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(color.copy(alpha = 0.12f))
-            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
+private fun StatChip(icon: ImageVector, label: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Primary.copy(alpha = 0.18f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = PrimaryAccent,
+            modifier = Modifier.size(11.dp)
+        )
+        Spacer(Modifier.size(4.dp))
+        Text(label, color = PrimaryAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
-private fun StatusBadge(status: ArtistStatus) {
+private fun StatusBadge(status: BuyerStatus) {
     val (label, color) = when (status) {
-        ArtistStatus.VERIFICADO -> "Verificado" to Color(0xFF4CAF50)
-        ArtistStatus.PENDIENTE  -> "Pendiente" to Color(0xFFFF9800)
-        ArtistStatus.SUSPENDIDO -> "Suspendido" to Color(0xFFF44336)
+        BuyerStatus.ACTIVO     -> "Activo"     to Color(0xFF4CAF50)
+        BuyerStatus.BLOQUEADO  -> "Bloqueado"  to Color(0xFFF44336)
     }
     Box(
         modifier = Modifier
@@ -310,13 +359,47 @@ private fun StatusBadge(status: ArtistStatus) {
 }
 
 @Composable
-private fun Avatar(initial: String) {
+private fun OutlineAction(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(12.dp)
+            )
+            Spacer(Modifier.size(4.dp))
+        }
+        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun Avatar(initial: String, muted: Boolean) {
     Box(
         modifier = Modifier
             .size(46.dp)
             .clip(CircleShape)
-            .background(Primary.copy(alpha = 0.22f))
-            .border(2.dp, Primary, CircleShape),
+            .background(
+                if (muted) Brush.linearGradient(0f to TextSecondary.copy(alpha = 0.3f), 1f to TextSecondary.copy(alpha = 0.18f))
+                else Brush.linearGradient(0f to Primary, 1f to PrimaryAccent)
+            )
+            .border(2.dp, TextPrimary.copy(alpha = 0.18f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(initial, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -324,7 +407,12 @@ private fun Avatar(initial: String) {
 }
 
 @Composable
-private fun EmptyHint() {
+private fun EmptyHint(tab: BuyerTab) {
+    val text = when (tab) {
+        BuyerTab.TODOS      -> "Aún no hay compradores registrados"
+        BuyerTab.ACTIVOS    -> "Sin compradores activos"
+        BuyerTab.BLOQUEADOS -> "No hay compradores bloqueados"
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -333,7 +421,7 @@ private fun EmptyHint() {
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("Sin artistas para mostrar", color = TextSecondary, fontSize = 12.sp)
+        Text(text, color = TextSecondary, fontSize = 12.sp)
     }
 }
 
@@ -342,6 +430,6 @@ private fun formatRevenue(value: Long): String {
         value >= 1_000_000 -> "$" + "%.1f".format(value / 1_000_000.0) + "M"
         value >= 1_000     -> "$" + "%.0f".format(value / 1_000.0) + "K"
         value > 0          -> "$" + NumberFormat.getInstance(Locale.forLanguageTag("es-CO")).format(value)
-        else               -> ""
+        else               -> "Sin compras"
     }
 }

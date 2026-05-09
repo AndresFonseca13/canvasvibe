@@ -55,6 +55,7 @@ fun LoginScreen(
     var password       by remember { mutableStateOf("") }
     var name           by remember { mutableStateOf("") }
     var isRegisterMode by remember { mutableStateOf(false) }
+    var selectedRole   by remember { mutableStateOf("ROLE_BUYER") }
 
     LaunchedEffect(state) {
         when (val s = state) {
@@ -95,6 +96,10 @@ fun LoginScreen(
                     onValueChange = { name = it },
                     placeholder = "Nombre completo"
                 )
+                RoleSelector(
+                    selectedRole = selectedRole,
+                    onSelect = { selectedRole = it }
+                )
             }
 
             DarkInput(
@@ -132,7 +137,7 @@ fun LoginScreen(
                 text = if (isRegisterMode) "Crear cuenta" else "Iniciar sesión",
                 loading = state is AuthState.Loading,
                 onClick = {
-                    if (isRegisterMode) viewModel.register(email, password, name)
+                    if (isRegisterMode) viewModel.register(email, password, name, selectedRole)
                     else viewModel.login(email, password)
                 }
             )
@@ -328,6 +333,56 @@ private fun PrimaryButton(text: String, loading: Boolean, onClick: () -> Unit) {
         } else {
             Text(text = text, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
+    }
+}
+
+@Composable
+private fun RoleSelector(selectedRole: String, onSelect: (String) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        RoleChip(
+            label = "Comprador",
+            selected = selectedRole == "ROLE_BUYER",
+            onClick = { onSelect("ROLE_BUYER") },
+            modifier = Modifier.weight(1f)
+        )
+        RoleChip(
+            label = "Vendedor",
+            selected = selectedRole == "ROLE_SELLER",
+            onClick = { onSelect("ROLE_SELLER") },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun RoleChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Primary else SurfaceDark)
+            .border(
+                1.dp,
+                if (selected) Primary else BorderSubtle,
+                RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) TextPrimary else TextSecondary,
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
     }
 }
 

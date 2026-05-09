@@ -51,9 +51,12 @@ class ProductRepository {
     // Agregar Producto
     suspend fun addProduct(product: Product): Result<String> {
         return try {
-            val docRef = productsCollection.document()
-            val newProduct = product.copy(id = docRef.id)
-            docRef.set(newProduct).await()
+            val docRef = if (product.id.isNotBlank())
+                productsCollection.document(product.id)
+            else
+                productsCollection.document()
+            val finalProduct = if (product.id.isBlank()) product.copy(id = docRef.id) else product
+            docRef.set(finalProduct).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
             Result.failure(e)

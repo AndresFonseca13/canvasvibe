@@ -8,9 +8,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -18,12 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import coil.compose.AsyncImage
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.canvasvibe.app.data.model.CartItem
+import com.canvasvibe.app.ui.buyer.components.BuyerBottomNav
 import com.canvasvibe.app.ui.buyer.home.formatCop
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
@@ -32,7 +32,7 @@ import com.canvasvibe.app.ui.theme.SurfaceDark
 import com.canvasvibe.app.ui.theme.TextPrimary
 import com.canvasvibe.app.ui.theme.TextSecondary
 
-private const val SHIPPING_COP = 15000L
+private const val COMMISSION_COP = 10000L
 
 @Composable
 fun CartScreen(
@@ -51,29 +51,29 @@ fun CartScreen(
     }
 
     val subtotal = items.sumOf { it.unitPrice * it.quantity }
-    val discount = 0L
-    val total = subtotal + SHIPPING_COP - discount
+    val total = subtotal + COMMISSION_COP
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        CartTopBar(count = items.size, onBack = onBack)
+        CartTopBar(count = items.size)
 
         if (items.isEmpty()) {
-            EmptyCart()
+            EmptyCart(modifier = Modifier.weight(1f))
         } else {
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
+                    .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items.forEach { item ->
+                items.forEachIndexed { index, item ->
                     CartItemCard(
                         item = item,
+                        thumbVariant = index % 2,
                         onDecrement = {
                             viewModel.updateQuantity(item.productId, item.quantity - 1)
                         },
@@ -82,66 +82,50 @@ fun CartScreen(
                         }
                     )
                 }
-                Spacer(Modifier.height(6.dp))
                 SummaryCard(
                     subtotal = subtotal,
-                    shipping = SHIPPING_COP,
-                    discount = discount,
+                    commission = COMMISSION_COP,
                     total = total
                 )
-                Spacer(Modifier.height(14.dp))
                 PayButton(onClick = { viewModel.checkout() })
-                Spacer(Modifier.height(16.dp))
             }
         }
+
+        BuyerBottomNav(
+            selectedIndex = 2,
+            onSelect = { ix -> if (ix == 0) onBack() }
+        )
     }
 }
 
 @Composable
-private fun CartTopBar(count: Int, onBack: () -> Unit) {
+private fun CartTopBar(count: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .background(SurfaceDark)
-                .border(1.dp, BorderSubtle, CircleShape)
-                .clickable { onBack() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ArrowBack,
-                contentDescription = "Atrás",
-                tint = TextPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(
-                text = "Mi Carrito",
-                color = TextPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = if (count == 1) "1 ítem" else "$count ítems",
-                color = TextSecondary,
-                fontSize = 12.sp
-            )
-        }
+        Text(
+            text = "Carrito",
+            color = TextPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = if (count == 1) "1 ítem" else "$count ítems",
+            color = TextSecondary,
+            fontSize = 13.sp
+        )
     }
 }
 
 @Composable
 private fun CartItemCard(
     item: CartItem,
+    thumbVariant: Int,
     onDecrement: () -> Unit,
     onIncrement: () -> Unit
 ) {
@@ -154,14 +138,7 @@ private fun CartItemCard(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(86.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    Brush.linearGradient(colors = listOf(SurfaceDark, PrimaryAccent))
-                )
-        )
+        CartThumb(variant = thumbVariant, imageUrl = item.imageUrl)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -172,22 +149,18 @@ private fun CartItemCard(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = item.sellerName.ifBlank { "Artista" },
+                text = listOf(item.material, item.size)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" · ")
+                    .ifBlank { "Licencia personal" },
                 color = TextSecondary,
                 fontSize = 12.sp
             )
-            if (item.size.isNotBlank() || item.material.isNotBlank()) {
-                Text(
-                    text = listOf(item.material, item.size).filter { it.isNotBlank() }.joinToString(" · "),
-                    color = TextSecondary,
-                    fontSize = 11.sp
-                )
-            }
             Spacer(Modifier.height(6.dp))
             Text(
                 text = formatCop(item.unitPrice * item.quantity),
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -196,6 +169,48 @@ private fun CartItemCard(
             onDecrement = onDecrement,
             onIncrement = onIncrement
         )
+    }
+}
+
+@Composable
+private fun CartThumb(variant: Int, imageUrl: String?) {
+    Box(
+        modifier = Modifier
+            .size(86.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (variant == 0)
+                    Brush.linearGradient(colors = listOf(BorderSubtle, Primary))
+                else
+                    Brush.verticalGradient(colors = listOf(BorderSubtle, PrimaryAccent))
+            )
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))
+            )
+        } else if (variant == 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 10.dp, y = 12.dp)
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryAccent)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 24.dp, y = 26.dp)
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Primary)
+            )
+        }
     }
 }
 
@@ -237,25 +252,18 @@ private fun QuantityBtn(symbol: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(subtotal: Long, shipping: Long, discount: Long, total: Long) {
+private fun SummaryCard(subtotal: Long, commission: Long, total: Long) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(SurfaceDark)
-            .border(1.dp, BorderSubtle, RoundedCornerShape(18.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         SummaryRow("Subtotal", formatCop(subtotal))
-        SummaryRow("Envío", formatCop(shipping))
-        if (discount > 0) SummaryRow("Descuento", "−${formatCop(discount)}")
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(BorderSubtle)
-        )
+        SummaryRow("Comisión", formatCop(commission))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -265,11 +273,11 @@ private fun SummaryCard(subtotal: Long, shipping: Long, discount: Long, total: L
                 text = "Total",
                 color = TextPrimary,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold
             )
             Text(
                 text = formatCop(total),
-                color = Primary,
+                color = TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -300,19 +308,19 @@ private fun PayButton(onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "Proceder al pago →",
+            text = "Pagar ahora",
             color = TextPrimary,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
 }
 
 @Composable
-private fun EmptyCart() {
+private fun EmptyCart(modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
+            .fillMaxWidth()
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
