@@ -13,3 +13,15 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Documentación local (no se sube al repo)
+/docs/
+/docs
+
+# Archivos relacionados con Claude Code / herramientas de IA
+.claude/
+.claude
+CLAUDE.md
+.claude.json
+.cursor/
+.cursorrules

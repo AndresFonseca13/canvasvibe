@@ -28,9 +28,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.canvasvibe.app.ui.buyer.components.BuyerBottomNav
 import com.canvasvibe.app.ui.theme.BorderSubtle
+import com.canvasvibe.app.ui.theme.CanvasVibeTheme
 import com.canvasvibe.app.ui.theme.Primary
 import com.canvasvibe.app.ui.theme.SurfaceDark
 import com.canvasvibe.app.ui.theme.TextSecondary
@@ -91,5 +94,16 @@ fun SellerBottomNav(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun BuyerSellerNavPreview() {
+    CanvasVibeTheme {
+        SellerBottomNav(
+            selectedIndex = 2,
+            onSelect = {}
+        )
     }
 }
