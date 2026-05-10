@@ -35,6 +35,9 @@ private val STATUS_ORDER = listOf("PENDING", "PREPARING", "SHIPPED", "IN_TRANSIT
 fun OrderTrackingScreen(
     orderId: String,
     onBack: () -> Unit,
+    onHomeClick: () -> Unit = onBack,
+    onCartClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     viewModel: OrderTrackingViewModel = viewModel()
 ) {
     LaunchedEffect(orderId) { viewModel.load(orderId) }
@@ -55,7 +58,14 @@ fun OrderTrackingScreen(
         }
         BuyerBottomNav(
             selectedIndex = 0,
-            onSelect = { ix -> if (ix == 0) onBack() }
+            onSelect = { ix ->
+                when (ix) {
+                    0, 1 -> onHomeClick()
+                    2    -> onCartClick()
+                    3    -> onProfileClick()
+                    else -> {}
+                }
+            }
         )
     }
 }

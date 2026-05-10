@@ -156,8 +156,8 @@ fun BuyerProfileScreen(
             selectedIndex = 3,
             onSelect = { ix ->
                 when (ix) {
-                    0 -> onHomeClick()
-                    2 -> onCartClick()
+                    0, 1 -> onHomeClick()
+                    2    -> onCartClick()
                     else -> {}
                 }
             }

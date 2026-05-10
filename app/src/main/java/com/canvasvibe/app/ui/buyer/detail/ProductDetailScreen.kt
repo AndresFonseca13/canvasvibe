@@ -1,5 +1,6 @@
 package com.canvasvibe.app.ui.buyer.detail
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,9 +24,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import coil.compose.AsyncImage
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,19 +45,29 @@ fun ProductDetailScreen(
     productId: String,
     onBack: () -> Unit,
     onCartClick: () -> Unit = {},
+    onHomeClick: () -> Unit = onBack,
+    onProfileClick: () -> Unit = {},
     viewModel: ProductDetailViewModel = viewModel()
 ) {
     LaunchedEffect(productId) { viewModel.load(productId) }
 
+    val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val material by viewModel.selectedMaterial.collectAsStateWithLifecycle()
     val size by viewModel.selectedSize.collectAsStateWithLifecycle()
-    val added by viewModel.addedToCart.collectAsStateWithLifecycle()
+    val isAdding by viewModel.isAddingToCart.collectAsStateWithLifecycle()
+    val isFav by viewModel.isFavorite.collectAsStateWithLifecycle()
+    val toggleBusy by viewModel.toggleInProgress.collectAsStateWithLifecycle()
+    val feedback by viewModel.feedback.collectAsStateWithLifecycle()
 
-    LaunchedEffect(added) {
-        if (added) {
-            onCartClick()
-            viewModel.clearAddedFlag()
+    LaunchedEffect(feedback) {
+        feedback?.let {
+            val text = when (it) {
+                is Feedback.Success -> it.message
+                is Feedback.Error   -> it.message
+            }
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            viewModel.consumeFeedback()
         }
     }
 
@@ -64,30 +76,42 @@ fun ProductDetailScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        DetailTopBar(onBack = onBack)
+        DetailTopBar()
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (val s = state) {
                 is ProductDetailUiState.Loading -> LoadingBox()
-                is ProductDetailUiState.Error -> ErrorBox(s.message)
-                is ProductDetailUiState.Ready -> DetailContent(
+                is ProductDetailUiState.Error   -> ErrorBox(s.message)
+                is ProductDetailUiState.Ready   -> DetailContent(
                     product = s.product,
                     selectedMaterial = material,
                     selectedSize = size,
+                    isFavorite = isFav,
+                    favoriteBusy = toggleBusy,
+                    isAddingToCart = isAdding,
                     onSelectMaterial = viewModel::selectMaterial,
                     onSelectSize = viewModel::selectSize,
+                    onToggleFavorite = viewModel::toggleFavorite,
                     onAddToCart = viewModel::addToCart
                 )
             }
         }
         BuyerBottomNav(
             selectedIndex = 1,
-            onSelect = { ix -> if (ix == 0) onBack() }
+            onSelect = { ix ->
+                when (ix) {
+                    0    -> onHomeClick()
+                    1    -> {} // ya estás en detalle/explorar
+                    2    -> onCartClick()
+                    3    -> onProfileClick()
+                    else -> {}
+                }
+            }
         )
     }
 }
 
 @Composable
-private fun DetailTopBar(onBack: () -> Unit) {
+private fun DetailTopBar() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -131,8 +155,12 @@ private fun DetailContent(
     product: Product,
     selectedMaterial: String?,
     selectedSize: String?,
+    isFavorite: Boolean,
+    favoriteBusy: Boolean,
+    isAddingToCart: Boolean,
     onSelectMaterial: (String) -> Unit,
     onSelectSize: (String) -> Unit,
+    onToggleFavorite: () -> Unit,
     onAddToCart: () -> Unit
 ) {
     Column(
@@ -156,34 +184,28 @@ private fun DetailContent(
         )
 
         if (product.description.isNotBlank()) {
-            Text(
-                text = product.description,
-                color = TextSecondary,
-                fontSize = 14.sp
-            )
+            Text(text = product.description, color = TextSecondary, fontSize = 14.sp)
         }
 
         if (product.materials.isNotEmpty()) {
             SectionTitle("Material")
-            ChipRow(
-                options = product.materials,
-                selected = selectedMaterial,
-                onSelect = onSelectMaterial
-            )
+            ChipRow(options = product.materials, selected = selectedMaterial, onSelect = onSelectMaterial)
         }
 
         if (product.sizes.isNotEmpty()) {
             SectionTitle("Tamaño")
-            ChipRow(
-                options = product.sizes,
-                selected = selectedSize,
-                onSelect = onSelectSize
-            )
+            ChipRow(options = product.sizes, selected = selectedSize, onSelect = onSelectSize)
         }
 
         PriceRow(priceBase = product.priceBase)
         Spacer(Modifier.height(4.dp))
-        ActionButtons(onAddToCart = onAddToCart)
+        ActionButtons(
+            isFavorite = isFavorite,
+            favoriteBusy = favoriteBusy,
+            isAddingToCart = isAddingToCart,
+            onToggleFavorite = onToggleFavorite,
+            onAddToCart = onAddToCart
+        )
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -240,12 +262,7 @@ private fun HeroImage(imageUrl: String?) {
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        color = TextPrimary,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold
-    )
+    Text(text, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 }
 
 @Composable
@@ -301,7 +318,13 @@ private fun PriceRow(priceBase: Long) {
 }
 
 @Composable
-private fun ActionButtons(onAddToCart: () -> Unit) {
+private fun ActionButtons(
+    isFavorite: Boolean,
+    favoriteBusy: Boolean,
+    isAddingToCart: Boolean,
+    onToggleFavorite: () -> Unit,
+    onAddToCart: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -311,25 +334,34 @@ private fun ActionButtons(onAddToCart: () -> Unit) {
                 .weight(1f)
                 .height(54.dp)
                 .clip(RoundedCornerShape(27.dp))
+                .background(if (isFavorite) Primary.copy(alpha = 0.16f) else Color.Transparent)
                 .border(2.dp, Primary, RoundedCornerShape(27.dp))
-                .clickable { }
+                .clickable(enabled = !favoriteBusy) { onToggleFavorite() }
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.FavoriteBorder,
-                    contentDescription = null,
-                    tint = Primary,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Favoritos",
+            if (favoriteBusy) {
+                CircularProgressIndicator(
                     color = Primary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(18.dp)
                 )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = null,
+                        tint = Primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (isFavorite) "En favoritos" else "Favoritos",
+                        color = Primary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
         Box(
@@ -338,15 +370,23 @@ private fun ActionButtons(onAddToCart: () -> Unit) {
                 .height(54.dp)
                 .clip(RoundedCornerShape(27.dp))
                 .background(Primary)
-                .clickable { onAddToCart() },
+                .clickable(enabled = !isAddingToCart) { onAddToCart() },
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "Agregar al carrito",
-                color = TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            if (isAddingToCart) {
+                CircularProgressIndicator(
+                    color = TextPrimary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text(
+                    text = "Agregar al carrito",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }

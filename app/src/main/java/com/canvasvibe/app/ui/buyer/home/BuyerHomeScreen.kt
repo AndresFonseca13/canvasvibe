@@ -63,7 +63,6 @@ fun BuyerHomeScreen(
         }
     }
 
-    var selectedTab by remember { mutableStateOf(0) }
     var categoryIx by remember { mutableStateOf(0) }
 
     LaunchedEffect(categoryTabs.size) {
@@ -122,13 +121,12 @@ fun BuyerHomeScreen(
         }
 
         BuyerBottomNav(
-            selectedIndex = selectedTab,
+            selectedIndex = 0,
             onSelect = { ix ->
-                selectedTab = ix
                 when (ix) {
-                    2 -> onCartClick()
-                    3 -> onProfileClick()
-                    else -> {}
+                    2    -> onCartClick()
+                    3    -> onProfileClick()
+                    else -> {} // 0/1 ya estamos en home
                 }
             }
         )

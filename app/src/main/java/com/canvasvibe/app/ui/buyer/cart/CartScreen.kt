@@ -10,7 +10,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,18 +38,12 @@ private const val COMMISSION_COP = 10000L
 @Composable
 fun CartScreen(
     onBack: () -> Unit,
-    onOrderPlaced: (String) -> Unit,
+    onCheckoutClick: () -> Unit,
+    onHomeClick: () -> Unit = onBack,
+    onProfileClick: () -> Unit = {},
     viewModel: CartViewModel = viewModel()
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
-    val placedOrderId by viewModel.checkoutOrderId.collectAsStateWithLifecycle()
-
-    LaunchedEffect(placedOrderId) {
-        placedOrderId?.let {
-            onOrderPlaced(it)
-            viewModel.clearCheckoutFlag()
-        }
-    }
 
     val subtotal = items.sumOf { it.unitPrice * it.quantity }
     val total = subtotal + COMMISSION_COP
@@ -87,13 +82,19 @@ fun CartScreen(
                     commission = COMMISSION_COP,
                     total = total
                 )
-                PayButton(onClick = { viewModel.checkout() })
+                PayButton(onClick = onCheckoutClick)
             }
         }
 
         BuyerBottomNav(
             selectedIndex = 2,
-            onSelect = { ix -> if (ix == 0) onBack() }
+            onSelect = { ix ->
+                when (ix) {
+                    0, 1 -> onHomeClick()
+                    3    -> onProfileClick()
+                    else -> {}
+                }
+            }
         )
     }
 }

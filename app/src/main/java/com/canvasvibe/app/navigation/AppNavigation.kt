@@ -17,6 +17,7 @@ import com.canvasvibe.app.ui.admin.reports.AdminReportsScreen
 import com.canvasvibe.app.ui.auth.BiometricScreen
 import com.canvasvibe.app.ui.auth.LoginScreen
 import com.canvasvibe.app.ui.buyer.cart.CartScreen
+import com.canvasvibe.app.ui.buyer.checkout.CheckoutScreen
 import com.canvasvibe.app.ui.buyer.detail.ProductDetailScreen
 import com.canvasvibe.app.ui.buyer.home.BuyerHomeScreen
 import com.canvasvibe.app.ui.buyer.profile.BuyerProfileScreen
@@ -48,7 +49,76 @@ fun AppNavigation() {
 
     val toSellerDashboard: () -> Unit = {
         navController.navigate(Screen.SellerDashboard.route) {
-            popUpTo(Screen.SellerDashboard.route) { inclusive = true }
+            popUpTo(Screen.SellerDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toSellerProducts: () -> Unit = {
+        navController.navigate(Screen.SellerProducts.route) {
+            popUpTo(Screen.SellerDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toSellerOrders: () -> Unit = {
+        navController.navigate(Screen.SellerOrders.route) {
+            popUpTo(Screen.SellerDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toSellerProfile: () -> Unit = {
+        navController.navigate(Screen.SellerProfile.route) {
+            popUpTo(Screen.SellerDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+
+    val toAdminDashboard: () -> Unit = {
+        navController.navigate(Screen.AdminDashboard.route) {
+            popUpTo(Screen.AdminDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toAdminArtists: () -> Unit = {
+        navController.navigate(Screen.AdminArtist.route) {
+            popUpTo(Screen.AdminDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toAdminBuyers: () -> Unit = {
+        navController.navigate(Screen.AdminBuyers.route) {
+            popUpTo(Screen.AdminDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toAdminCategories: () -> Unit = {
+        navController.navigate(Screen.AdminCategories.route) {
+            popUpTo(Screen.AdminDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toAdminReports: () -> Unit = {
+        navController.navigate(Screen.AdminReports.route) {
+            popUpTo(Screen.AdminDashboard.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+
+    val toBuyerHome: () -> Unit = {
+        navController.navigate(Screen.BuyerHome.route) {
+            popUpTo(Screen.BuyerHome.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toBuyerCart: () -> Unit = {
+        navController.navigate(Screen.Cart.route) {
+            popUpTo(Screen.BuyerHome.route) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val toBuyerProfile: () -> Unit = {
+        navController.navigate(Screen.BuyerProfile.route) {
+            popUpTo(Screen.BuyerHome.route) { inclusive = false }
+            launchSingleTop = true
         }
     }
 
@@ -71,8 +141,8 @@ fun AppNavigation() {
         composable(Screen.BuyerHome.route) {
             BuyerHomeScreen(
                 onProductClick = { id -> navController.navigate(Screen.ProductDetail.createRoute(id)) },
-                onCartClick = { navController.navigate(Screen.Cart.route) },
-                onProfileClick = { navController.navigate(Screen.BuyerProfile.route) },
+                onCartClick = toBuyerCart,
+                onProfileClick = toBuyerProfile,
                 onLogout = logout
             )
         }
@@ -81,12 +151,8 @@ fun AppNavigation() {
             BuyerProfileScreen(
                 onBack = { navController.popBackStack() },
                 onLogout = logout,
-                onHomeClick = {
-                    navController.navigate(Screen.BuyerHome.route) {
-                        popUpTo(Screen.BuyerHome.route) { inclusive = true }
-                    }
-                },
-                onCartClick = { navController.navigate(Screen.Cart.route) }
+                onHomeClick = toBuyerHome,
+                onCartClick = toBuyerCart
             )
         }
 
@@ -95,14 +161,25 @@ fun AppNavigation() {
             ProductDetailScreen(
                 productId = productId,
                 onBack = { navController.popBackStack() },
-                onCartClick = { navController.navigate(Screen.Cart.route) }
+                onHomeClick = toBuyerHome,
+                onCartClick = toBuyerCart,
+                onProfileClick = toBuyerProfile
             )
         }
 
         composable(Screen.Cart.route) {
             CartScreen(
                 onBack = { navController.popBackStack() },
-                onOrderPlaced = { orderId ->
+                onCheckoutClick = { navController.navigate(Screen.Checkout.route) },
+                onHomeClick = toBuyerHome,
+                onProfileClick = toBuyerProfile
+            )
+        }
+
+        composable(Screen.Checkout.route) {
+            CheckoutScreen(
+                onBack = { navController.popBackStack() },
+                onPaid = { orderId ->
                     navController.navigate(Screen.OrderTracking.createRoute(orderId)) {
                         popUpTo(Screen.BuyerHome.route)
                     }
@@ -112,15 +189,21 @@ fun AppNavigation() {
 
         composable(Screen.OrderTracking.route) { backStack ->
             val orderId = backStack.arguments?.getString("orderId") ?: ""
-            OrderTrackingScreen(orderId = orderId, onBack = { navController.popBackStack() })
+            OrderTrackingScreen(
+                orderId = orderId,
+                onBack = { navController.popBackStack() },
+                onHomeClick = toBuyerHome,
+                onCartClick = toBuyerCart,
+                onProfileClick = toBuyerProfile
+            )
         }
 
         composable(Screen.SellerDashboard.route) {
             SellerDashboardScreen(
-                onOrdersClick = { navController.navigate(Screen.SellerOrders.route) },
+                onOrdersClick = toSellerOrders,
                 onAddProductClick = { navController.navigate(Screen.AddProduct.createRoute()) },
-                onProductsClick = { navController.navigate(Screen.SellerProducts.route) },
-                onProfileClick = { navController.navigate(Screen.SellerProfile.route) },
+                onProductsClick = toSellerProducts,
+                onProfileClick = toSellerProfile,
                 onLogout = logout
             )
         }
@@ -130,8 +213,8 @@ fun AppNavigation() {
                 onAddProductClick = { navController.navigate(Screen.AddProduct.createRoute()) },
                 onEditProduct = { id -> navController.navigate(Screen.AddProduct.createRoute(id)) },
                 onHomeClick = toSellerDashboard,
-                onOrdersClick = { navController.navigate(Screen.SellerOrders.route) },
-                onProfileClick = { navController.navigate(Screen.SellerProfile.route) }
+                onOrdersClick = toSellerOrders,
+                onProfileClick = toSellerProfile
             )
         }
 
@@ -156,12 +239,8 @@ fun AppNavigation() {
             SellerOrdersScreen(
                 onBack = { navController.popBackStack() },
                 onHomeClick = toSellerDashboard,
-                onProductsClick = {
-                    navController.navigate(Screen.SellerProducts.route) {
-                        popUpTo(Screen.SellerDashboard.route)
-                    }
-                },
-                onProfileClick = { navController.navigate(Screen.SellerProfile.route) }
+                onProductsClick = toSellerProducts,
+                onProfileClick = toSellerProfile
             )
         }
 
@@ -170,21 +249,17 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() },
                 onLogout = logout,
                 onHomeClick = toSellerDashboard,
-                onProductsClick = {
-                    navController.navigate(Screen.SellerProducts.route) {
-                        popUpTo(Screen.SellerDashboard.route)
-                    }
-                },
-                onOrdersClick = { navController.navigate(Screen.SellerOrders.route) }
+                onProductsClick = toSellerProducts,
+                onOrdersClick = toSellerOrders
             )
         }
 
         composable(Screen.AdminDashboard.route) {
             AdminDashboardScreen(
-                onArtistClick = { navController.navigate(Screen.AdminArtist.route) },
-                onBuyersClick = { navController.navigate(Screen.AdminBuyers.route) },
-                onCategoriesClick = { navController.navigate(Screen.AdminCategories.route) },
-                onReportsClick = { navController.navigate(Screen.AdminReports.route) },
+                onArtistClick = toAdminArtists,
+                onBuyersClick = toAdminBuyers,
+                onCategoriesClick = toAdminCategories,
+                onReportsClick = toAdminReports,
                 onLogout = logout
             )
         }
@@ -192,56 +267,40 @@ fun AppNavigation() {
         composable(Screen.AdminArtist.route) {
             AdminArtistScreen(
                 onBack = { navController.popBackStack() },
-                onDashboardClick = {
-                    navController.navigate(Screen.AdminDashboard.route) {
-                        popUpTo(Screen.AdminDashboard.route) { inclusive = true }
-                    }
-                },
-                onBuyersClick = { navController.navigate(Screen.AdminBuyers.route) },
-                onCategoriesClick = { navController.navigate(Screen.AdminCategories.route) },
-                onReportsClick = { navController.navigate(Screen.AdminReports.route) }
+                onDashboardClick = toAdminDashboard,
+                onBuyersClick = toAdminBuyers,
+                onCategoriesClick = toAdminCategories,
+                onReportsClick = toAdminReports
             )
         }
 
         composable(Screen.AdminBuyers.route) {
             AdminBuyersScreen(
                 onBack = { navController.popBackStack() },
-                onDashboardClick = {
-                    navController.navigate(Screen.AdminDashboard.route) {
-                        popUpTo(Screen.AdminDashboard.route) { inclusive = true }
-                    }
-                },
-                onArtistsClick = { navController.navigate(Screen.AdminArtist.route) },
-                onCategoriesClick = { navController.navigate(Screen.AdminCategories.route) },
-                onReportsClick = { navController.navigate(Screen.AdminReports.route) }
+                onDashboardClick = toAdminDashboard,
+                onArtistsClick = toAdminArtists,
+                onCategoriesClick = toAdminCategories,
+                onReportsClick = toAdminReports
             )
         }
 
         composable(Screen.AdminCategories.route) {
             AdminCategoriesScreen(
                 onBack = { navController.popBackStack() },
-                onDashboardClick = {
-                    navController.navigate(Screen.AdminDashboard.route) {
-                        popUpTo(Screen.AdminDashboard.route) { inclusive = true }
-                    }
-                },
-                onArtistsClick = { navController.navigate(Screen.AdminArtist.route) },
-                onBuyersClick = { navController.navigate(Screen.AdminBuyers.route) },
-                onReportsClick = { navController.navigate(Screen.AdminReports.route) }
+                onDashboardClick = toAdminDashboard,
+                onArtistsClick = toAdminArtists,
+                onBuyersClick = toAdminBuyers,
+                onReportsClick = toAdminReports
             )
         }
 
         composable(Screen.AdminReports.route) {
             AdminReportsScreen(
                 onBack = { navController.popBackStack() },
-                onDashboardClick = {
-                    navController.navigate(Screen.AdminDashboard.route) {
-                        popUpTo(Screen.AdminDashboard.route) { inclusive = true }
-                    }
-                },
-                onArtistsClick = { navController.navigate(Screen.AdminArtist.route) },
-                onBuyersClick = { navController.navigate(Screen.AdminBuyers.route) },
-                onCategoriesClick = { navController.navigate(Screen.AdminCategories.route) }
+                onDashboardClick = toAdminDashboard,
+                onArtistsClick = toAdminArtists,
+                onBuyersClick = toAdminBuyers,
+                onCategoriesClick = toAdminCategories
             )
         }
 
