@@ -25,3 +25,7 @@ CLAUDE.md
 .claude.json
 .cursor/
 .cursorrules
+
+# Configuración Firebase (no subir al repo)
+app/google-services.json
+google-services.json
