@@ -29,19 +29,40 @@ object EpaycoBus {
             uri.toString().startsWith(EpaycoConfig.confirmationUrl)
         if (!isCustomScheme && !isHttpResponse) return false
 
-        val status = uri.getQueryParameter("x_response").orEmpty()
+        val rawStatus = uri.getQueryParameter("x_response")
+            ?: uri.getQueryParameter("x_transaction_state")
+            ?: uri.getQueryParameter("transactionState")
+            ?: uri.getQueryParameter("respuesta")
+            ?: ""
         val refPayco = uri.getQueryParameter("x_ref_payco")
-            ?: uri.getQueryParameter("ref_payco").orEmpty()
+            ?: uri.getQueryParameter("ref_payco")
+            ?: uri.getQueryParameter("transactionID")
+            ?: ""
         val reason = uri.getQueryParameter("x_response_reason_text").orEmpty()
-        val approved = status.equals("Aceptada", ignoreCase = true) ||
-            status.equals("Aprobada", ignoreCase = true)
+
+        // ePayco solo manda ref_payco en la response URL. El status se confirma
+        // con el webhook server-side. Si llegamos con un ref y sin status explícito
+        // asumimos aprobado (la transacción existe en ePayco). Si vino status,
+        // lo respetamos.
+        val approvedExplicit = rawStatus.equals("Aceptada", ignoreCase = true) ||
+            rawStatus.equals("Aprobada", ignoreCase = true)
+        val rejectedExplicit = rawStatus.equals("Rechazada", ignoreCase = true) ||
+            rawStatus.equals("Fallida", ignoreCase = true) ||
+            rawStatus.equals("Cancelada", ignoreCase = true)
+
+        val approved = approvedExplicit || (rawStatus.isBlank() && refPayco.isNotBlank())
+        val finalStatus = when {
+            rawStatus.isNotBlank() -> rawStatus
+            approved               -> "Aceptada"
+            else                   -> "Pendiente"
+        }
 
         publish(
             EpaycoResult(
-                status = status.ifBlank { "Pendiente" },
+                status = finalStatus,
                 refPayco = refPayco,
                 responseReason = reason,
-                approved = approved
+                approved = approved && !rejectedExplicit
             )
         )
         return true
