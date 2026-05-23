@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CanvasVibe — Volviendo a la app</title>
+<style>
+  body {
+    background: #0F0F0F;
+    color: #FFFFFF;
+    font-family: -apple-system, Roboto, Arial, sans-serif;
+    margin: 0;
+    padding: 24px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .logo { font-size: 26px; font-weight: 700; color: #7C4DFF; }
+  .status { font-size: 16px; margin: 14px 0 6px 0; }
+  .reason { font-size: 13px; color: #9E9E9E; max-width: 320px; line-height: 1.45; }
+  .ref { font-family: monospace; font-size: 12px; color: #B39DDB; margin-top: 6px; }
+  .btn {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 14px 28px;
+    background: #7C4DFF;
+    color: #FFFFFF;
+    border-radius: 28px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .spinner {
+    width: 38px; height: 38px;
+    border: 3px solid #2A2A2A;
+    border-top-color: #7C4DFF;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 18px 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="logo">CanvasVibe</div>
+  <div class="spinner"></div>
+  <div class="status" id="title">Confirmando tu pago…</div>
+  <div class="reason" id="reason">Te estamos llevando de vuelta a la app.</div>
+  <div class="ref" id="ref"></div>
+  <a class="btn" id="manualBtn" href="#">Volver a CanvasVibe</a>
+
+<script>
+(function() {
+  function param(name) {
+    try {
+      var url = new URL(window.location.href);
+      return url.searchParams.get(name) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  var status   = param('x_response') || param('x_transaction_state') || 'Pendiente';
+  var ref      = param('x_ref_payco') || param('ref_payco') || '';
+  var reason   = param('x_response_reason_text') || '';
+
+  document.getElementById('title').innerText =
+    status.toLowerCase() === 'aceptada' || status.toLowerCase() === 'aprobada'
+      ? 'Pago aprobado'
+      : 'Pago: ' + status;
+  document.getElementById('reason').innerText =
+    reason || 'Te estamos llevando de vuelta a la app.';
+  if (ref) document.getElementById('ref').innerText = 'Ref. ' + ref;
+
+  var qs = window.location.search || '';
+  var deepLink = 'canvasvibe://payment/response' + qs;
+
+  document.getElementById('manualBtn').href = deepLink;
+
+  // Auto-redirección al custom scheme de la app
+  setTimeout(function() {
+    window.location.href = deepLink;
+  }, 600);
+})();
+</script>
+</body>
+</html>

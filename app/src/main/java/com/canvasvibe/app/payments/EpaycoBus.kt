@@ -23,9 +23,11 @@ object EpaycoBus {
     }
 
     fun parseAndPublish(uri: Uri): Boolean {
-        val isResponse = uri.toString().startsWith(EpaycoConfig.responseUrl) ||
+        val isCustomScheme = uri.scheme == EpaycoConfig.deepLinkScheme &&
+            uri.host == EpaycoConfig.deepLinkHost
+        val isHttpResponse = uri.toString().startsWith(EpaycoConfig.responseUrl) ||
             uri.toString().startsWith(EpaycoConfig.confirmationUrl)
-        if (!isResponse) return false
+        if (!isCustomScheme && !isHttpResponse) return false
 
         val status = uri.getQueryParameter("x_response").orEmpty()
         val refPayco = uri.getQueryParameter("x_ref_payco")

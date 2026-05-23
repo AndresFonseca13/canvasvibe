@@ -37,15 +37,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Retorno de ePayco luego del pago -->
+            <!-- Retorno de ePayco luego del pago (deep link único de CanvasVibe) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="https"
-                    android:host="canvasvibe.app"
-                    android:pathPrefix="/payment" />
+                    android:scheme="canvasvibe"
+                    android:host="payment" />
             </intent-filter>
         </activity>
 

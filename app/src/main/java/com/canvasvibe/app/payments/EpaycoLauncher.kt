@@ -43,7 +43,7 @@ object EpaycoLauncher {
     }
 
     private const val BOOTSTRAP_URL =
-        "https://cdn.jsdelivr.net/gh/AndresFonseca13/canvasvibe@main/web/checkout.html"
+        "https://andresfonseca13.github.io/canvasvibe/web/checkout.html"
 }
 
 data class EpaycoCheckoutData(
