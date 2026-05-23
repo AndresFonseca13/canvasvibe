@@ -1,8 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
+
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun localProp(key: String, default: String = ""): String =
+    localProperties.getProperty(key) ?: System.getenv(key) ?: default
 
 android {
     namespace = "com.canvasvibe.app"
@@ -16,6 +26,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "EPAYCO_PUBLIC_KEY", "\"${localProp("EPAYCO_PUBLIC_KEY")}\"")
+        buildConfigField("String", "EPAYCO_CUST_ID",    "\"${localProp("EPAYCO_CUST_ID")}\"")
+        buildConfigField("boolean", "EPAYCO_TEST_MODE", "true")
     }
 
     buildTypes {
@@ -33,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -67,4 +82,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.biometric)
     implementation(libs.coil.compose)
+    implementation(libs.play.services.location)
+    implementation(libs.androidx.browser)
 }

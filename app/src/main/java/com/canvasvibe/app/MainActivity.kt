@@ -1,5 +1,6 @@
 package com.canvasvibe.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.setContent
@@ -13,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.canvasvibe.app.data.repository.CategoryRepository
 import com.canvasvibe.app.navigation.AppNavigation
+import com.canvasvibe.app.payments.EpaycoBus
 import com.canvasvibe.app.ui.theme.Background
 import com.canvasvibe.app.ui.theme.CanvasVibeTheme
 import com.google.firebase.auth.FirebaseAuth
@@ -33,6 +35,8 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        handleEpaycoIntent(intent)
+
         setContent {
             CanvasVibeTheme {
                 Box(
@@ -44,6 +48,19 @@ class MainActivity : FragmentActivity() {
                     AppNavigation()
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleEpaycoIntent(intent)
+    }
+
+    private fun handleEpaycoIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (EpaycoBus.parseAndPublish(data)) {
+            Log.d("MainActivity", "ePayco deep link processed: $data")
         }
     }
 }

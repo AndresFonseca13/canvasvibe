@@ -15,6 +15,15 @@ data class Order(
     val unitPrice: Long = 0L,
     val totalPrice: Long = 0L,
     val status: String = "PENDING",  // PENDING, PREPARING, SHIPPED, DELIVERED, CANCELLED
+    val shippingAddress: String = "",
+    val shippingCity: String = "",
+    val shippingPhone: String = "",
+    val shippingNotes: String = "",
+    val shippingLatitude: Double? = null,
+    val shippingLongitude: Double? = null,
+    val paymentMethod: String = "",
+    val paymentRef: String = "",
+    val paymentStatus: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

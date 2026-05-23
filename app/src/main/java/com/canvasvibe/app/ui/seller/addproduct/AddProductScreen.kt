@@ -1,5 +1,8 @@
 package com.canvasvibe.app.ui.seller.addproduct
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,15 +29,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.Icon
 import coil.compose.AsyncImage
+import com.canvasvibe.app.util.CameraImage
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
 import com.canvasvibe.app.ui.theme.PrimaryAccent
@@ -71,10 +82,50 @@ fun AddProductScreen(
         if (!productId.isNullOrBlank()) viewModel.loadForEdit(productId)
     }
 
+    val context = LocalContext.current
+    var showSourceSheet by remember { mutableStateOf(false) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 3)
     ) { uris ->
         if (uris.isNotEmpty()) viewModel.setImages(uris)
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { wasTaken ->
+        val uri = pendingCameraUri
+        if (wasTaken && uri != null) viewModel.addImage(uri)
+        pendingCameraUri = null
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = CameraImage.createTempImageUri(context)
+            pendingCameraUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
+    fun launchCamera() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            val uri = CameraImage.createTempImageUri(context)
+            pendingCameraUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    fun launchGallery() {
+        pickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
     }
 
     LaunchedEffect(state) {
@@ -84,6 +135,7 @@ fun AddProductScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -101,11 +153,7 @@ fun AddProductScreen(
             ImagePickerCard(
                 uris = imageUris,
                 existingUrls = existingImageUrls,
-                onPick = {
-                    pickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                }
+                onPick = { showSourceSheet = true }
             )
 
             CategoryRow(
@@ -146,6 +194,118 @@ fun AddProductScreen(
                 isEditing = isEditing,
                 onClick = { viewModel.publish() }
             )
+        }
+    }
+
+        if (showSourceSheet) {
+            ImageSourceSheet(
+                onDismiss = { showSourceSheet = false },
+                onCamera = {
+                    showSourceSheet = false
+                    launchCamera()
+                },
+                onGallery = {
+                    showSourceSheet = false
+                    launchGallery()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImageSourceSheet(
+    onDismiss: () -> Unit,
+    onCamera: () -> Unit,
+    onGallery: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .background(SurfaceDark)
+                .clickable(enabled = false) {}
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(bottom = 6.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 44.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(BorderSubtle)
+            )
+            Text(
+                text = "Agregar imagen",
+                color = TextPrimary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Elige de dónde quieres tomar la foto del producto.",
+                color = TextSecondary,
+                fontSize = 12.sp
+            )
+            SourceOption(
+                icon = Icons.Filled.PhotoCamera,
+                title = "Tomar foto",
+                subtitle = "Usa la cámara del dispositivo",
+                onClick = onCamera
+            )
+            SourceOption(
+                icon = Icons.Filled.PhotoLibrary,
+                title = "Elegir de galería",
+                subtitle = "Selecciona hasta 3 imágenes",
+                onClick = onGallery
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun SourceOption(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Primary.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Spacer(Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = TextSecondary, fontSize = 11.sp)
         }
     }
 }

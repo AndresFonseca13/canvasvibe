@@ -13,6 +13,8 @@ coroutines = "1.10.2"
 navigationComposeVersion = "2.9.7"
 biometric = "1.1.0"
 coil = "2.7.0"
+playServicesLocation = "21.3.0"
+browser = "1.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,6 +45,8 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationComposeVersion" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

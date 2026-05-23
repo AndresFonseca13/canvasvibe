@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -40,6 +42,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.canvasvibe.app.ui.admin.components.AdminBottomNav
+import com.canvasvibe.app.ui.admin.components.ConfirmDeleteDialog
+import com.canvasvibe.app.ui.admin.components.EditUserDialog
 import com.canvasvibe.app.ui.theme.Background
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
@@ -90,7 +94,9 @@ fun AdminArtistScreen(
                                 ArtistStatus.SUSPENDIDO  -> ArtistStatus.VERIFICADO
                             }
                             vm.changeStatus(artist.uid, next)
-                        }
+                        },
+                        onEdit   = { vm.startEdit(artist) },
+                        onDelete = { vm.startDelete(artist) }
                     )
                 }
             }
@@ -108,6 +114,27 @@ fun AdminArtistScreen(
                     else -> {}
                 }
             }
+        )
+    }
+
+    state.editingArtist?.let { artist ->
+        EditUserDialog(
+            initialName = artist.name,
+            initialRole = "ROLE_SELLER",
+            showRoleSelector = true,
+            isSaving = state.isSaving,
+            errorMessage = state.errorMessage,
+            onDismiss = { vm.cancelEdit() },
+            onSave = { name, role -> vm.saveEdit(name, role) }
+        )
+    }
+
+    state.deletingArtist?.let { artist ->
+        ConfirmDeleteDialog(
+            userName = artist.name,
+            isDeleting = state.isDeleting,
+            onDismiss = { vm.cancelDelete() },
+            onConfirm = { vm.confirmDelete() }
         )
     }
 }
@@ -205,7 +232,12 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ArtistCard(artist: AdminArtist, onPrimary: () -> Unit) {
+private fun ArtistCard(
+    artist: AdminArtist,
+    onPrimary: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -261,14 +293,35 @@ private fun ArtistCard(artist: AdminArtist, onPrimary: () -> Unit) {
             StatusBadge(artist.status)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlineAction(label = "Ver detalle", color = Primary, modifier = Modifier.weight(1f), onClick = {})
             val (label, color) = when (artist.status) {
                 ArtistStatus.PENDIENTE  -> "Verificar" to Color(0xFF4CAF50)
                 ArtistStatus.VERIFICADO -> "Suspender" to Color(0xFFF44336)
                 ArtistStatus.SUSPENDIDO -> "Reactivar" to Color(0xFF4CAF50)
             }
             OutlineAction(label = label, color = color, modifier = Modifier.weight(1f), onClick = onPrimary)
+            IconAction(icon = Icons.Filled.Edit, color = Primary, onClick = onEdit)
+            IconAction(icon = Icons.Filled.Delete, color = Color(0xFFCF6679), onClick = onDelete)
         }
+    }
+}
+
+@Composable
+private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 

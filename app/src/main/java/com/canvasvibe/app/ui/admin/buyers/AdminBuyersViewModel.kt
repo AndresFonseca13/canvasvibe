@@ -2,6 +2,7 @@ package com.canvasvibe.app.ui.admin.buyers
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.canvasvibe.app.data.repository.UserRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,10 +29,16 @@ data class AdminBuyersUiState(
     val tab: BuyerTab = BuyerTab.TODOS,
     val query: String = "",
     val buyers: List<AdminBuyer> = emptyList(),
+    val editingBuyer: AdminBuyer? = null,
+    val deletingBuyer: AdminBuyer? = null,
+    val isSaving: Boolean = false,
+    val isDeleting: Boolean = false,
     val errorMessage: String? = null
 )
 
-class AdminBuyersViewModel : ViewModel() {
+class AdminBuyersViewModel(
+    private val userRepo: UserRepository = UserRepository()
+) : ViewModel() {
 
     private val _state = MutableStateFlow(AdminBuyersUiState())
     val state: StateFlow<AdminBuyersUiState> = _state.asStateFlow()
@@ -41,6 +48,70 @@ class AdminBuyersViewModel : ViewModel() {
     fun setQuery(v: String) { _state.value = _state.value.copy(query = v) }
     fun selectTab(t: BuyerTab) { _state.value = _state.value.copy(tab = t) }
     fun dismissError() { _state.value = _state.value.copy(errorMessage = null) }
+
+    fun startEdit(buyer: AdminBuyer) {
+        _state.value = _state.value.copy(editingBuyer = buyer, errorMessage = null)
+    }
+    fun cancelEdit() {
+        _state.value = _state.value.copy(editingBuyer = null, isSaving = false)
+    }
+
+    fun startDelete(buyer: AdminBuyer) {
+        _state.value = _state.value.copy(deletingBuyer = buyer, errorMessage = null)
+    }
+    fun cancelDelete() {
+        _state.value = _state.value.copy(deletingBuyer = null, isDeleting = false)
+    }
+
+    fun saveEdit(name: String, role: String) {
+        val editing = _state.value.editingBuyer ?: return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isSaving = true, errorMessage = null)
+            userRepo.updateProfile(editing.uid, name, role).fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(
+                        isSaving = false,
+                        editingBuyer = null,
+                        buyers = if (role == "ROLE_BUYER") {
+                            _state.value.buyers.map {
+                                if (it.uid == editing.uid) it.copy(name = name) else it
+                            }
+                        } else {
+                            _state.value.buyers.filter { it.uid != editing.uid }
+                        }
+                    )
+                },
+                onFailure = { e ->
+                    _state.value = _state.value.copy(
+                        isSaving = false,
+                        errorMessage = friendly(e)
+                    )
+                }
+            )
+        }
+    }
+
+    fun confirmDelete() {
+        val target = _state.value.deletingBuyer ?: return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isDeleting = true, errorMessage = null)
+            userRepo.softDelete(target.uid).fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(
+                        isDeleting = false,
+                        deletingBuyer = null,
+                        buyers = _state.value.buyers.filter { it.uid != target.uid }
+                    )
+                },
+                onFailure = { e ->
+                    _state.value = _state.value.copy(
+                        isDeleting = false,
+                        errorMessage = friendly(e)
+                    )
+                }
+            )
+        }
+    }
 
     fun changeStatus(uid: String, status: BuyerStatus) {
         viewModelScope.launch {
@@ -73,29 +144,31 @@ class AdminBuyersViewModel : ViewModel() {
                     .get().await()
                 val ordersSnap = db.collection("orders").get().await()
 
-                val buyers = buyersSnap.documents.map { doc ->
-                    val uid = doc.id
-                    val orders = ordersSnap.documents.filter {
-                        it.getString("buyerId") == uid &&
-                            (it.getString("status") ?: "") != "CANCELLED"
-                    }
-                    val totalSpent = orders.sumOf { it.getLong("totalPrice") ?: 0L }
-                    val lastOrderAt = orders.maxOfOrNull { it.getLong("createdAt") ?: 0L } ?: 0L
-                    val statusRaw = doc.getString("buyerStatus")
-                    val status = runCatching { BuyerStatus.valueOf(statusRaw ?: "ACTIVO") }
-                        .getOrDefault(BuyerStatus.ACTIVO)
+                val buyers = buyersSnap.documents
+                    .filter { it.getBoolean("isActive") != false }
+                    .map { doc ->
+                        val uid = doc.id
+                        val orders = ordersSnap.documents.filter {
+                            it.getString("buyerId") == uid &&
+                                (it.getString("status") ?: "") != "CANCELLED"
+                        }
+                        val totalSpent = orders.sumOf { it.getLong("totalPrice") ?: 0L }
+                        val lastOrderAt = orders.maxOfOrNull { it.getLong("createdAt") ?: 0L } ?: 0L
+                        val statusRaw = doc.getString("buyerStatus")
+                        val status = runCatching { BuyerStatus.valueOf(statusRaw ?: "ACTIVO") }
+                            .getOrDefault(BuyerStatus.ACTIVO)
 
-                    AdminBuyer(
-                        uid = uid,
-                        name = doc.getString("name").orEmpty().ifBlank { "Sin nombre" },
-                        email = doc.getString("email").orEmpty(),
-                        createdAt = doc.getLong("createdAt") ?: 0L,
-                        orderCount = orders.size,
-                        totalSpentCop = totalSpent,
-                        lastOrderAt = lastOrderAt,
-                        status = status
-                    )
-                }.sortedByDescending { it.totalSpentCop }
+                        AdminBuyer(
+                            uid = uid,
+                            name = doc.getString("name").orEmpty().ifBlank { "Sin nombre" },
+                            email = doc.getString("email").orEmpty(),
+                            createdAt = doc.getLong("createdAt") ?: 0L,
+                            orderCount = orders.size,
+                            totalSpentCop = totalSpent,
+                            lastOrderAt = lastOrderAt,
+                            status = status
+                        )
+                    }.sortedByDescending { it.totalSpentCop }
                 _state.value = _state.value.copy(isLoading = false, buyers = buyers)
             }.onFailure { e ->
                 _state.value = _state.value.copy(

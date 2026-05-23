@@ -13,6 +13,7 @@ sealed class AuthState {
     object Loading : AuthState()
     data class Success(val user: User) : AuthState()
     data class Registered(val user: User) : AuthState()
+    data class PasswordResetSent(val email: String) : AuthState()
     data class Error(val message: String) : AuthState()
 }
 
@@ -43,6 +44,36 @@ class LoginViewModel : ViewModel() {
             } else {
                 AuthState.Error(result.exceptionOrNull()?.message ?: "Error desconocido")
             }
+        }
+    }
+
+    fun sendPasswordReset(email: String) {
+        if (email.isBlank()) {
+            _state.value = AuthState.Error("Ingresa tu correo electrónico")
+            return
+        }
+        viewModelScope.launch {
+            _state.value = AuthState.Loading
+            val result = repo.sendPasswordResetEmail(email.trim())
+            _state.value = if (result.isSuccess)
+                AuthState.PasswordResetSent(email.trim())
+            else
+                AuthState.Error(friendlyReset(result.exceptionOrNull()))
+        }
+    }
+
+    private fun friendlyReset(e: Throwable?): String {
+        val raw = e?.message.orEmpty()
+        return when {
+            raw.contains("no user record", true) ||
+                raw.contains("there is no user", true) ->
+                "No existe una cuenta con ese correo"
+            raw.contains("badly formatted", true) ||
+                raw.contains("email address is badly", true) ->
+                "El correo no tiene un formato válido"
+            raw.contains("network", true) -> "Sin conexión a internet"
+            raw.isBlank() -> "No se pudo enviar el correo de recuperación"
+            else -> raw
         }
     }
 

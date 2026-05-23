@@ -92,6 +92,11 @@ class AddProductViewModel(
     fun setElaborationDays(v: String) { _elaborationDays.value = v }
     fun setCustomizable(v: Boolean) { _isCustomizable.value = v }
     fun setImages(uris: List<Uri>) { _imageUris.value = uris }
+    fun addImage(uri: Uri) {
+        val current = _imageUris.value
+        if (uri in current) return
+        _imageUris.value = (current + uri).takeLast(3)
+    }
     fun removeImage(uri: Uri) { _imageUris.value = _imageUris.value - uri }
 
     fun resetForm() {

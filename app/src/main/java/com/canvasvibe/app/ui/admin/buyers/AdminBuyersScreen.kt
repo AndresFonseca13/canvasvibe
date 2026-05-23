@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -44,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.canvasvibe.app.ui.admin.components.AdminBottomNav
+import com.canvasvibe.app.ui.admin.components.ConfirmDeleteDialog
+import com.canvasvibe.app.ui.admin.components.EditUserDialog
 import com.canvasvibe.app.ui.theme.Background
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
@@ -95,7 +99,9 @@ fun AdminBuyersScreen(
                             val next = if (buyer.status == BuyerStatus.ACTIVO)
                                 BuyerStatus.BLOQUEADO else BuyerStatus.ACTIVO
                             vm.changeStatus(buyer.uid, next)
-                        }
+                        },
+                        onEdit   = { vm.startEdit(buyer) },
+                        onDelete = { vm.startDelete(buyer) }
                     )
                 }
             }
@@ -113,6 +119,27 @@ fun AdminBuyersScreen(
                     else -> {}
                 }
             }
+        )
+    }
+
+    state.editingBuyer?.let { buyer ->
+        EditUserDialog(
+            initialName = buyer.name,
+            initialRole = "ROLE_BUYER",
+            showRoleSelector = true,
+            isSaving = state.isSaving,
+            errorMessage = state.errorMessage,
+            onDismiss = { vm.cancelEdit() },
+            onSave = { name, role -> vm.saveEdit(name, role) }
+        )
+    }
+
+    state.deletingBuyer?.let { buyer ->
+        ConfirmDeleteDialog(
+            userName = buyer.name,
+            isDeleting = state.isDeleting,
+            onDismiss = { vm.cancelDelete() },
+            onConfirm = { vm.confirmDelete() }
         )
     }
 }
@@ -258,7 +285,12 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BuyerCard(buyer: AdminBuyer, onPrimary: () -> Unit) {
+private fun BuyerCard(
+    buyer: AdminBuyer,
+    onPrimary: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val isBlocked = buyer.status == BuyerStatus.BLOQUEADO
     Column(
         modifier = Modifier
@@ -306,19 +338,35 @@ private fun BuyerCard(buyer: AdminBuyer, onPrimary: () -> Unit) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlineAction(
-                label = "Ver detalle",
-                color = Primary,
-                modifier = Modifier.weight(1f),
-                onClick = {}
-            )
-            OutlineAction(
                 label = if (isBlocked) "Desbloquear" else "Bloquear",
                 color = if (isBlocked) Color(0xFF4CAF50) else Color(0xFFF44336),
                 modifier = Modifier.weight(1f),
                 icon = if (isBlocked) Icons.Filled.CheckCircle else Icons.Filled.Block,
                 onClick = onPrimary
             )
+            IconAction(icon = Icons.Filled.Edit, color = Primary, onClick = onEdit)
+            IconAction(icon = Icons.Filled.Delete, color = Color(0xFFCF6679), onClick = onDelete)
         }
+    }
+}
+
+@Composable
+private fun IconAction(icon: ImageVector, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 

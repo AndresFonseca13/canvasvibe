@@ -1,11 +1,15 @@
 package com.canvasvibe.app.ui.buyer.checkout
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.canvasvibe.app.data.model.CartItem
 import com.canvasvibe.app.data.model.Order
 import com.canvasvibe.app.data.repository.CartRepository
 import com.canvasvibe.app.data.repository.OrderRepository
+import com.canvasvibe.app.payments.EpaycoBus
+import com.canvasvibe.app.payments.EpaycoResult
+import com.canvasvibe.app.util.LocationHelper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,36 +23,21 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-enum class PaymentMethod { PSE, TARJETA, NEQUI }
-
-fun PaymentMethod.label(): String = when (this) {
-    PaymentMethod.PSE     -> "PSE"
-    PaymentMethod.TARJETA -> "Tarjeta"
-    PaymentMethod.NEQUI   -> "Nequi"
-}
-
-fun PaymentMethod.subtitle(): String = when (this) {
-    PaymentMethod.PSE     -> "Débito desde tu banco"
-    PaymentMethod.TARJETA -> "Crédito o débito"
-    PaymentMethod.NEQUI   -> "Pago con celular"
-}
-
 data class CheckoutForm(
     val fullName: String = "",
     val phone: String = "",
     val address: String = "",
     val city: String = "",
     val notes: String = "",
-    val method: PaymentMethod = PaymentMethod.PSE,
-    val cardNumber: String = "",
-    val cardExpiry: String = "",
-    val cardCvv: String = "",
-    val pseBank: String = "",
-    val nequiPhone: String = ""
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val isLocating: Boolean = false,
+    val locationMessage: String? = null
 )
 
 sealed interface CheckoutState {
     data class Form(val form: CheckoutForm = CheckoutForm()) : CheckoutState
+    data class AwaitingPayment(val form: CheckoutForm, val amount: Long, val invoice: String) : CheckoutState
     object Processing : CheckoutState
     data class Success(val orderId: String) : CheckoutState
     data class Error(val message: String) : CheckoutState
@@ -81,25 +70,75 @@ class CheckoutViewModel(
 
     val shippingCost: Long = COMMISSION_COP
 
-    fun updateForm(transform: (CheckoutForm) -> CheckoutForm) {
-        val current = _state.value
-        if (current is CheckoutState.Form) {
-            _state.value = CheckoutState.Form(transform(current.form))
+    private var lastForm: CheckoutForm = CheckoutForm()
+
+    init {
+        viewModelScope.launch {
+            EpaycoBus.events.collect { result ->
+                if (_state.value is CheckoutState.AwaitingPayment) {
+                    confirmPayment(result)
+                }
+            }
         }
     }
 
-    fun setMethod(method: PaymentMethod) = updateForm { it.copy(method = method) }
+    fun updateForm(transform: (CheckoutForm) -> CheckoutForm) {
+        val current = _state.value
+        val updated = when (current) {
+            is CheckoutState.Form           -> transform(current.form)
+            is CheckoutState.AwaitingPayment -> transform(current.form)
+            is CheckoutState.Error           -> transform(lastForm)
+            else                             -> transform(lastForm)
+        }
+        lastForm = updated
+        _state.value = CheckoutState.Form(updated)
+    }
+
+    fun lastForm(): CheckoutForm {
+        val s = _state.value
+        return when (s) {
+            is CheckoutState.Form            -> s.form
+            is CheckoutState.AwaitingPayment -> s.form
+            else                              -> lastForm
+        }
+    }
+
     fun setFullName(v: String)  = updateForm { it.copy(fullName = v) }
     fun setPhone(v: String)     = updateForm { it.copy(phone = v.filter { c -> c.isDigit() }) }
-    fun setAddress(v: String)   = updateForm { it.copy(address = v) }
+    fun setAddress(v: String)   = updateForm { it.copy(address = v, locationMessage = null) }
     fun setCity(v: String)      = updateForm { it.copy(city = v) }
     fun setNotes(v: String)     = updateForm { it.copy(notes = v) }
-    fun setCardNumber(v: String) = updateForm { it.copy(cardNumber = v.filter { c -> c.isDigit() }.take(16)) }
-    fun setCardExpiry(v: String) = updateForm { it.copy(cardExpiry = v.take(5)) }
-    fun setCardCvv(v: String)    = updateForm { it.copy(cardCvv = v.filter { c -> c.isDigit() }.take(4)) }
-    fun setPseBank(v: String)    = updateForm { it.copy(pseBank = v) }
-    fun setNequiPhone(v: String) = updateForm { it.copy(nequiPhone = v.filter { c -> c.isDigit() }) }
+    fun dismissLocationMessage() = updateForm { it.copy(locationMessage = null) }
 
+    fun fetchCurrentLocation(context: Context) {
+        val current = _state.value as? CheckoutState.Form ?: return
+        if (current.form.isLocating) return
+        updateForm { it.copy(isLocating = true, locationMessage = null) }
+        viewModelScope.launch {
+            LocationHelper.fetchCurrentAddress(context).fold(
+                onSuccess = { geo ->
+                    updateForm {
+                        it.copy(
+                            isLocating = false,
+                            address = geo.street.ifBlank { it.address },
+                            city = geo.city.ifBlank { it.city },
+                            latitude = geo.latitude,
+                            longitude = geo.longitude,
+                            locationMessage = "Ubicación capturada con GPS"
+                        )
+                    }
+                },
+                onFailure = {
+                    updateForm {
+                        it.copy(
+                            isLocating = false,
+                            locationMessage = "No se pudo obtener tu ubicación. Activa el GPS e intenta nuevamente."
+                        )
+                    }
+                }
+            )
+        }
+    }
     fun consumeError() {
         val current = _state.value
         if (current is CheckoutState.Error) _state.value = CheckoutState.Form()
@@ -124,12 +163,40 @@ class CheckoutViewModel(
             return
         }
 
+        val total = list.sumOf { it.unitPrice * it.quantity } + COMMISSION_COP
+        val invoice = "CV-" + System.currentTimeMillis()
+        _state.value = CheckoutState.AwaitingPayment(form = form, amount = total, invoice = invoice)
+    }
+
+    fun cancelPayment() {
+        val awaiting = _state.value as? CheckoutState.AwaitingPayment
+        _state.value = if (awaiting != null) CheckoutState.Form(awaiting.form)
+        else CheckoutState.Form()
+    }
+
+    fun confirmPayment(result: EpaycoResult) {
+        val u = uid ?: run {
+            _state.value = CheckoutState.Error("Sesión inválida. Inicia sesión nuevamente.")
+            return
+        }
+        val awaiting = _state.value as? CheckoutState.AwaitingPayment ?: return
+        val list = items.value
+        if (list.isEmpty()) {
+            _state.value = CheckoutState.Error("El carrito quedó vacío durante el pago")
+            return
+        }
+        if (!result.approved) {
+            val msg = result.responseReason.ifBlank { "Pago no aprobado por ePayco" }
+            _state.value = CheckoutState.Error("$msg (ref: ${result.refPayco})")
+            return
+        }
+        val form = awaiting.form
         viewModelScope.launch {
             _state.value = CheckoutState.Processing
             try {
                 val first = list.first()
                 val sellerId = lookupSellerId(first.productId)
-                val total = list.sumOf { it.unitPrice * it.quantity } + COMMISSION_COP
+                val total = awaiting.amount
                 val buyerName = lookupBuyerName(u)
                 val order = Order(
                     buyerId = u,
@@ -143,7 +210,16 @@ class CheckoutViewModel(
                     size = first.size,
                     quantity = list.sumOf { it.quantity },
                     unitPrice = first.unitPrice,
-                    totalPrice = total
+                    totalPrice = total,
+                    shippingAddress = form.address,
+                    shippingCity = form.city,
+                    shippingPhone = form.phone,
+                    shippingNotes = form.notes,
+                    shippingLatitude = form.latitude,
+                    shippingLongitude = form.longitude,
+                    paymentMethod = "ePayco",
+                    paymentRef = result.refPayco,
+                    paymentStatus = result.status
                 )
                 orderRepo.createOrder(order).fold(
                     onSuccess = { orderId ->
@@ -184,17 +260,6 @@ class CheckoutViewModel(
         if (form.phone.length < 7) return "Ingresa un teléfono válido"
         if (form.address.isBlank()) return "Ingresa la dirección de envío"
         if (form.city.isBlank()) return "Ingresa la ciudad"
-        return when (form.method) {
-            PaymentMethod.TARJETA -> validateCard(form)
-            PaymentMethod.PSE     -> if (form.pseBank.isBlank()) "Selecciona tu banco" else null
-            PaymentMethod.NEQUI   -> if (form.nequiPhone.length < 10) "Número Nequi inválido" else null
-        }
-    }
-
-    private fun validateCard(form: CheckoutForm): String? {
-        if (form.cardNumber.length < 13) return "Número de tarjeta inválido"
-        if (!form.cardExpiry.matches(Regex("\\d{2}/\\d{2}"))) return "Vencimiento inválido (MM/AA)"
-        if (form.cardCvv.length < 3) return "CVV inválido"
         return null
     }
 

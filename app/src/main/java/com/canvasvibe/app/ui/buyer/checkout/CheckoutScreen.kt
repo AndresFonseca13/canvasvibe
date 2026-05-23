@@ -1,5 +1,8 @@
 package com.canvasvibe.app.ui.buyer.checkout
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,11 +24,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -37,7 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,7 +46,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.canvasvibe.app.payments.EpaycoCheckoutData
 import com.canvasvibe.app.ui.buyer.home.formatCop
+import com.canvasvibe.app.ui.buyer.payment.EpaycoCheckoutScreen
+import com.google.firebase.auth.FirebaseAuth
 import com.canvasvibe.app.ui.theme.Background
 import com.canvasvibe.app.ui.theme.BorderSubtle
 import com.canvasvibe.app.ui.theme.Primary
@@ -62,6 +66,24 @@ fun CheckoutScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val items by vm.items.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) vm.fetchCurrentLocation(context)
+    }
+
+    val useLocation: () -> Unit = {
+        locationPermissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
 
     LaunchedEffect(state) {
         val s = state
@@ -81,17 +103,12 @@ fun CheckoutScreen(
                     form = s.form,
                     subtotal = items.sumOf { it.unitPrice * it.quantity },
                     shipping = vm.shippingCost,
-                    onMethodChange = vm::setMethod,
                     onFullNameChange = vm::setFullName,
                     onPhoneChange = vm::setPhone,
                     onAddressChange = vm::setAddress,
                     onCityChange = vm::setCity,
                     onNotesChange = vm::setNotes,
-                    onCardNumberChange = vm::setCardNumber,
-                    onCardExpiryChange = vm::setCardExpiry,
-                    onCardCvvChange = vm::setCardCvv,
-                    onPseBankChange = vm::setPseBank,
-                    onNequiPhoneChange = vm::setNequiPhone,
+                    onUseLocation = useLocation,
                     onPay = vm::pay,
                     isProcessing = false,
                     errorMessage = null
@@ -102,17 +119,12 @@ fun CheckoutScreen(
                     form = (state as? CheckoutState.Form)?.form ?: vm.lastKnownForm(),
                     subtotal = items.sumOf { it.unitPrice * it.quantity },
                     shipping = vm.shippingCost,
-                    onMethodChange = {},
                     onFullNameChange = {},
                     onPhoneChange = {},
                     onAddressChange = {},
                     onCityChange = {},
                     onNotesChange = {},
-                    onCardNumberChange = {},
-                    onCardExpiryChange = {},
-                    onCardCvvChange = {},
-                    onPseBankChange = {},
-                    onNequiPhoneChange = {},
+                    onUseLocation = {},
                     onPay = {},
                     isProcessing = true,
                     errorMessage = null
@@ -123,20 +135,30 @@ fun CheckoutScreen(
                     form = vm.lastKnownForm(),
                     subtotal = items.sumOf { it.unitPrice * it.quantity },
                     shipping = vm.shippingCost,
-                    onMethodChange = vm::setMethod,
                     onFullNameChange = vm::setFullName,
                     onPhoneChange = vm::setPhone,
                     onAddressChange = vm::setAddress,
                     onCityChange = vm::setCity,
                     onNotesChange = vm::setNotes,
-                    onCardNumberChange = vm::setCardNumber,
-                    onCardExpiryChange = vm::setCardExpiry,
-                    onCardCvvChange = vm::setCardCvv,
-                    onPseBankChange = vm::setPseBank,
-                    onNequiPhoneChange = vm::setNequiPhone,
+                    onUseLocation = useLocation,
                     onPay = { vm.consumeError(); vm.pay() },
                     isProcessing = false,
                     errorMessage = s.message
+                )
+            }
+            is CheckoutState.AwaitingPayment -> {
+                val email = FirebaseAuth.getInstance().currentUser?.email.orEmpty()
+                EpaycoCheckoutScreen(
+                    data = EpaycoCheckoutData(
+                        amount = s.amount,
+                        description = "CanvasVibe pedido #${s.invoice.takeLast(8)}",
+                        invoice = s.invoice,
+                        buyerName = s.form.fullName,
+                        buyerEmail = email,
+                        buyerPhone = s.form.phone
+                    ),
+                    onResult = { vm.confirmPayment(it) },
+                    onCancel = { vm.cancelPayment() }
                 )
             }
             is CheckoutState.Success -> {
@@ -160,9 +182,7 @@ fun CheckoutScreen(
     }
 }
 
-private fun CheckoutViewModel.lastKnownForm(): CheckoutForm {
-    return (state.value as? CheckoutState.Form)?.form ?: CheckoutForm()
-}
+private fun CheckoutViewModel.lastKnownForm(): CheckoutForm = lastForm()
 
 @Composable
 private fun TopBar(onBack: () -> Unit) {
@@ -199,17 +219,12 @@ private fun FormBody(
     form: CheckoutForm,
     subtotal: Long,
     shipping: Long,
-    onMethodChange: (PaymentMethod) -> Unit,
     onFullNameChange: (String) -> Unit,
     onPhoneChange: (String) -> Unit,
     onAddressChange: (String) -> Unit,
     onCityChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
-    onCardNumberChange: (String) -> Unit,
-    onCardExpiryChange: (String) -> Unit,
-    onCardCvvChange: (String) -> Unit,
-    onPseBankChange: (String) -> Unit,
-    onNequiPhoneChange: (String) -> Unit,
+    onUseLocation: () -> Unit,
     onPay: () -> Unit,
     isProcessing: Boolean,
     errorMessage: String?
@@ -235,25 +250,19 @@ private fun FormBody(
                 LabeledField("Teléfono", form.phone, onPhoneChange, keyboardType = KeyboardType.Phone)
                 LabeledField("Dirección", form.address, onAddressChange)
                 LabeledField("Ciudad", form.city, onCityChange)
+                LocationRow(
+                    isLocating = form.isLocating,
+                    latitude = form.latitude,
+                    longitude = form.longitude,
+                    message = form.locationMessage,
+                    onUseLocation = onUseLocation
+                )
                 LabeledField("Notas (opcional)", form.notes, onNotesChange, singleLine = false)
             }
         }
 
-        item { SectionTitle("Método de pago") }
-        item {
-            MethodSelector(selected = form.method, onSelect = onMethodChange)
-        }
-
-        item {
-            CardContainer {
-                when (form.method) {
-                    PaymentMethod.TARJETA -> CardForm(form, onCardNumberChange, onCardExpiryChange, onCardCvvChange)
-                    PaymentMethod.PSE     -> PseForm(form, onPseBankChange)
-                    PaymentMethod.NEQUI   -> NequiForm(form, onNequiPhoneChange)
-                }
-            }
-        }
-
+        item { SectionTitle("Pago") }
+        item { EpaycoBanner() }
         item { Spacer(Modifier.height(4.dp)) }
         item { SecureBadge() }
         item {
@@ -264,6 +273,48 @@ private fun FormBody(
             )
         }
         item { Spacer(Modifier.height(8.dp)) }
+    }
+}
+
+@Composable
+private fun EpaycoBanner() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceDark)
+            .border(1.dp, Primary.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(Primary.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = null,
+                tint = Primary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Pago seguro con ePayco",
+                color = TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Elige PSE, tarjeta o Nequi dentro de la pasarela. CanvasVibe nunca ve tus datos de pago.",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
     }
 }
 
@@ -312,146 +363,6 @@ private fun SummaryRow(label: String, value: String) {
         Text(label, color = TextSecondary, fontSize = 13.sp)
         Text(value, color = TextPrimary, fontSize = 13.sp)
     }
-}
-
-@Composable
-private fun MethodSelector(
-    selected: PaymentMethod,
-    onSelect: (PaymentMethod) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MethodOption(
-            method = PaymentMethod.PSE,
-            icon = Icons.Filled.AccountBalance,
-            selected = selected == PaymentMethod.PSE,
-            onClick = { onSelect(PaymentMethod.PSE) }
-        )
-        MethodOption(
-            method = PaymentMethod.TARJETA,
-            icon = Icons.Filled.CreditCard,
-            selected = selected == PaymentMethod.TARJETA,
-            onClick = { onSelect(PaymentMethod.TARJETA) }
-        )
-        MethodOption(
-            method = PaymentMethod.NEQUI,
-            icon = Icons.Filled.Smartphone,
-            selected = selected == PaymentMethod.NEQUI,
-            onClick = { onSelect(PaymentMethod.NEQUI) }
-        )
-    }
-}
-
-@Composable
-private fun MethodOption(
-    method: PaymentMethod,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceDark)
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) Primary else BorderSubtle,
-                RoundedCornerShape(12.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Primary.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = Primary, modifier = Modifier.size(18.dp))
-        }
-        Spacer(Modifier.size(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(method.label(), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(method.subtitle(), color = TextSecondary, fontSize = 11.sp)
-        }
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .border(2.dp, if (selected) Primary else BorderSubtle, CircleShape)
-                .background(if (selected) Primary else Color.Transparent),
-            contentAlignment = Alignment.Center
-        ) {
-            if (selected) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CardForm(
-    form: CheckoutForm,
-    onCardNumber: (String) -> Unit,
-    onCardExpiry: (String) -> Unit,
-    onCardCvv: (String) -> Unit
-) {
-    LabeledField("Número de tarjeta", form.cardNumber, onCardNumber, keyboardType = KeyboardType.Number, placeholder = "1234 5678 9012 3456")
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(modifier = Modifier.weight(1f)) {
-            LabeledField("Vencimiento", form.cardExpiry, onCardExpiry, placeholder = "MM/AA")
-        }
-        Box(modifier = Modifier.weight(1f)) {
-            LabeledField("CVV", form.cardCvv, onCardCvv, keyboardType = KeyboardType.Number, placeholder = "123")
-        }
-    }
-}
-
-@Composable
-private fun PseForm(form: CheckoutForm, onBank: (String) -> Unit) {
-    val banks = listOf("Bancolombia", "Davivienda", "Banco de Bogotá", "BBVA", "Nequi (Bancolombia)", "Nu")
-    Text("Selecciona tu banco", color = TextSecondary, fontSize = 12.sp)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        banks.forEach { name ->
-            val selected = form.pseBank == name
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) Primary.copy(alpha = 0.16f) else Background)
-                    .border(1.dp, if (selected) Primary else BorderSubtle, RoundedCornerShape(10.dp))
-                    .clickable { onBank(name) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(name, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                if (selected) Icon(Icons.Filled.CheckCircle, null, tint = Primary, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun NequiForm(form: CheckoutForm, onPhone: (String) -> Unit) {
-    LabeledField(
-        label = "Número Nequi",
-        value = form.nequiPhone,
-        onChange = onPhone,
-        keyboardType = KeyboardType.Phone,
-        placeholder = "Ej: 3001234567"
-    )
-    Text(
-        "Recibirás una notificación push para confirmar el pago.",
-        color = TextSecondary,
-        fontSize = 11.sp
-    )
 }
 
 @Composable
@@ -552,3 +463,61 @@ private fun ErrorBanner(message: String) {
 }
 
 @Suppress("unused") private val unusedAccent = PrimaryAccent
+
+@Composable
+private fun LocationRow(
+    isLocating: Boolean,
+    latitude: Double?,
+    longitude: Double?,
+    message: String?,
+    onUseLocation: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Primary.copy(alpha = 0.14f))
+                .border(1.dp, Primary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                .clickable(enabled = !isLocating, onClick = onUseLocation)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isLocating) {
+                CircularProgressIndicator(
+                    color = Primary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(16.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.MyLocation,
+                    contentDescription = null,
+                    tint = Primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text = if (isLocating) "Obteniendo ubicación…" else "Usar mi ubicación actual",
+                color = Primary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (latitude != null && longitude != null) {
+            Text(
+                text = "GPS: %.5f, %.5f".format(latitude, longitude),
+                color = TextSecondary,
+                fontSize = 10.sp
+            )
+        }
+        if (!message.isNullOrBlank()) {
+            Text(
+                text = message,
+                color = if (latitude != null) Color(0xFF81C784) else Color(0xFFFF8A80),
+                fontSize = 11.sp
+            )
+        }
+    }
+}

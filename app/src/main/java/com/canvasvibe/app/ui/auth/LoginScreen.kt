@@ -56,6 +56,8 @@ fun LoginScreen(
     var name           by remember { mutableStateOf("") }
     var isRegisterMode by remember { mutableStateOf(false) }
     var selectedRole   by remember { mutableStateOf("ROLE_BUYER") }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var resetEmail      by remember { mutableStateOf("") }
 
     LaunchedEffect(state) {
         when (val s = state) {
@@ -68,6 +70,12 @@ fun LoginScreen(
                 password = ""
                 name = ""
                 isRegisterMode = false
+                viewModel.resetState()
+            }
+            is AuthState.PasswordResetSent -> {
+                showResetDialog = false
+                resetEmail = ""
+                kotlinx.coroutines.delay(2500)
                 viewModel.resetState()
             }
             else -> Unit
@@ -121,7 +129,14 @@ fun LoginScreen(
                 Text(
                     text = "Olvidé mi contraseña",
                     color = PrimaryAccent,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clickable {
+                            resetEmail = email
+                            showResetDialog = true
+                            viewModel.resetState()
+                        }
+                        .padding(vertical = 4.dp)
                 )
             }
 
@@ -197,6 +212,183 @@ fun LoginScreen(
                 }
             }
         }
+
+        AnimatedVisibility(
+            visible = state is AuthState.PasswordResetSent,
+            enter = fadeIn(tween(220)),
+            exit  = fadeOut(tween(220))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xCC000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                ResetSentCard(email = (state as? AuthState.PasswordResetSent)?.email.orEmpty())
+            }
+        }
+
+        if (showResetDialog) {
+            ResetPasswordDialog(
+                email = resetEmail,
+                onEmailChange = { resetEmail = it },
+                state = state,
+                onDismiss = {
+                    showResetDialog = false
+                    viewModel.resetState()
+                },
+                onSubmit = { viewModel.sendPasswordReset(resetEmail) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResetPasswordDialog(
+    email: String,
+    onEmailChange: (String) -> Unit,
+    state: AuthState,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(SurfaceDark)
+                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
+                .clickable(enabled = false) {}
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Recuperar contraseña",
+                color = TextPrimary,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.",
+                color = TextSecondary,
+                fontSize = 13.sp
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0F0F0F))
+                    .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                BasicTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    singleLine = true,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
+                    cursorBrush = SolidColor(Primary),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    decorationBox = { inner ->
+                        if (email.isEmpty()) {
+                            Text("Correo electrónico", color = TextSecondary, fontSize = 14.sp)
+                        }
+                        inner()
+                    }
+                )
+            }
+
+            (state as? AuthState.Error)?.let {
+                Text(
+                    text = it.message,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Transparent)
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Cancelar", color = TextSecondary, fontSize = 14.sp)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Primary)
+                        .clickable(enabled = state !is AuthState.Loading, onClick = onSubmit),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state is AuthState.Loading) {
+                        CircularProgressIndicator(
+                            color = TextPrimary,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    } else {
+                        Text("Enviar", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResetSentCard(email: String) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 28.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceDark)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
+            .padding(horizontal = 28.dp, vertical = 26.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Brush.radialGradient(colors = listOf(Primary, PrimaryAccent))),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("✉", color = TextPrimary, fontSize = 30.sp)
+        }
+        Text(
+            text = "Correo enviado",
+            color = TextPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = if (email.isNotBlank())
+                "Revisa $email para restablecer tu contraseña."
+            else
+                "Revisa tu correo para restablecer tu contraseña.",
+            color = TextSecondary,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
