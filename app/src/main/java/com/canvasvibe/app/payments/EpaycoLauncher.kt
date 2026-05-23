@@ -25,31 +25,25 @@ object EpaycoLauncher {
 
     private fun buildCheckoutUrl(data: EpaycoCheckoutData): String {
         val params = mapOf(
-            "p_cust_id_cliente" to EpaycoConfig.customerId,
-            "p_key"             to EpaycoConfig.publicKey,
-            "p_id_invoice"      to data.invoice,
-            "p_description"     to data.description,
-            "p_amount"          to data.amount.toString(),
-            "p_tax"             to "0",
-            "p_amount_base"     to data.amount.toString(),
-            "p_currency_code"   to "COP",
-            "p_test_request"    to if (EpaycoConfig.testMode) "TRUE" else "FALSE",
-            "p_url_response"    to EpaycoConfig.responseUrl,
-            "p_url_confirmation" to EpaycoConfig.confirmationUrl,
-            "p_billing_name"    to data.buyerName,
-            "p_billing_email"   to data.buyerEmail,
-            "p_billing_mobilephone" to data.buyerPhone,
-            "p_extra1"          to "CanvasVibe",
-            "p_lang"            to "es"
+            "key"     to EpaycoConfig.publicKey,
+            "cust"    to EpaycoConfig.customerId,
+            "amount"  to data.amount.toString(),
+            "invoice" to data.invoice,
+            "desc"    to data.description,
+            "name"    to data.buyerName,
+            "email"   to data.buyerEmail,
+            "phone"   to data.buyerPhone,
+            "test"    to if (EpaycoConfig.testMode) "true" else "false"
         )
-
         val query = params
             .filter { it.value.isNotBlank() }
             .entries
             .joinToString("&") { "${it.key}=${Uri.encode(it.value)}" }
-
-        return "https://secure.epayco.co/checkout.php?$query"
+        return "$BOOTSTRAP_URL?$query"
     }
+
+    private const val BOOTSTRAP_URL =
+        "https://cdn.jsdelivr.net/gh/AndresFonseca13/canvasvibe@main/web/checkout.html"
 }
 
 data class EpaycoCheckoutData(

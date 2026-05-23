@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CanvasVibe — Pago seguro</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #0F0F0F;
+    color: #FFFFFF;
+    font-family: -apple-system, BlinkMacSystemFont, Roboto, "Segoe UI", Arial, sans-serif;
+    margin: 0;
+    padding: 24px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .logo {
+    font-size: 28px;
+    font-weight: 700;
+    color: #7C4DFF;
+    letter-spacing: -0.5px;
+  }
+  .sub {
+    font-size: 13px;
+    color: #9E9E9E;
+    margin: 6px 0 22px 0;
+  }
+  .card {
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+    border-radius: 16px;
+    padding: 26px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .desc {
+    font-size: 13px;
+    color: #B0B0B0;
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+  .amount {
+    font-size: 30px;
+    color: #7C4DFF;
+    font-weight: 700;
+    margin: 16px 0 22px 0;
+  }
+  .btn {
+    display: block;
+    margin: 0 auto;
+    padding: 14px 22px;
+    background: #7C4DFF;
+    color: #FFFFFF;
+    border-radius: 28px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.2s;
+  }
+  .btn:disabled { opacity: 0.6; }
+  .loading {
+    color: #9E9E9E;
+    font-size: 12px;
+    margin-top: 14px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 18px;
+    padding: 6px 12px;
+    background: rgba(124, 77, 255, 0.14);
+    border-radius: 999px;
+    color: #B39DDB;
+    font-size: 11px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div class="logo">CanvasVibe</div>
+  <div class="sub">Pago seguro procesado por ePayco</div>
+
+  <div class="card">
+    <div class="desc" id="desc">Cargando información del pedido…</div>
+    <div class="amount" id="amount">$ 0 COP</div>
+    <button class="btn" id="payBtn" disabled>Cargando…</button>
+    <div class="loading" id="status">Conectando con ePayco…</div>
+  </div>
+
+  <div class="badge" id="testBadge" style="display:none">MODO PRUEBAS</div>
+
+<script src="https://checkout.epayco.co/checkout.js"></script>
+<script>
+(function() {
+  function param(name) {
+    try {
+      var url = new URL(window.location.href);
+      return url.searchParams.get(name) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  var publicKey = param('key');
+  var custId    = param('cust');
+  var amount    = param('amount');
+  var invoice   = param('invoice');
+  var desc      = param('desc') || 'CanvasVibe pedido';
+  var fullName  = param('name')  || 'Cliente CanvasVibe';
+  var email     = param('email') || '';
+  var phone     = param('phone') || '';
+  var test      = (param('test') || 'true') === 'true';
+
+  document.getElementById('desc').innerText = desc;
+
+  var amountInt = parseInt(amount || '0', 10);
+  document.getElementById('amount').innerText =
+    '$ ' + amountInt.toLocaleString('es-CO') + ' COP';
+
+  if (test) {
+    document.getElementById('testBadge').style.display = 'inline-flex';
+  }
+
+  var statusEl = document.getElementById('status');
+  var btn = document.getElementById('payBtn');
+
+  if (!publicKey || !amount || amountInt <= 0) {
+    statusEl.innerText = 'Configuración incompleta. Vuelve a la app.';
+    btn.innerText = 'No disponible';
+    return;
+  }
+
+  if (typeof ePayco === 'undefined') {
+    statusEl.innerText = 'No se pudo cargar la pasarela. Verifica tu conexión.';
+    btn.innerText = 'Reintentar';
+    btn.disabled = false;
+    btn.addEventListener('click', function() {
+      window.location.reload();
+    });
+    return;
+  }
+
+  var handler = ePayco.checkout.configure({
+    key: publicKey,
+    test: test
+  });
+
+  var paymentData = {
+    name: desc.substring(0, 50),
+    description: desc,
+    invoice: invoice,
+    currency: 'cop',
+    amount: amount,
+    tax_base: '0',
+    tax: '0',
+    country: 'co',
+    lang: 'es',
+    external: 'true',
+    response: 'https://canvasvibe.app/payment/response',
+    confirmation: 'https://canvasvibe.app/payment/confirmation',
+    name_billing: fullName,
+    email_billing: email,
+    type_doc_billing: 'cc',
+    mobilephone_billing: phone
+  };
+
+  btn.disabled = false;
+  btn.innerText = 'Pagar ahora';
+  statusEl.innerText = 'Tus datos no se almacenan en CanvasVibe.';
+
+  btn.addEventListener('click', function() {
+    handler.open(paymentData);
+  });
+
+  // Auto-abrir el modal de ePayco después de un breve delay
+  setTimeout(function() {
+    try { handler.open(paymentData); } catch (e) { console.log('open error', e); }
+  }, 700);
+})();
+</script>
+</body>
+</html>
