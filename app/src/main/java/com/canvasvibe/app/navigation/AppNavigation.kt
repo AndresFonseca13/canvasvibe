@@ -19,7 +19,9 @@ import com.canvasvibe.app.ui.auth.LoginScreen
 import com.canvasvibe.app.ui.buyer.cart.CartScreen
 import com.canvasvibe.app.ui.buyer.checkout.CheckoutScreen
 import com.canvasvibe.app.ui.buyer.detail.ProductDetailScreen
+import com.canvasvibe.app.ui.buyer.favorites.BuyerFavoritesScreen
 import com.canvasvibe.app.ui.buyer.home.BuyerHomeScreen
+import com.canvasvibe.app.ui.buyer.orders.BuyerOrdersScreen
 import com.canvasvibe.app.ui.buyer.profile.BuyerProfileScreen
 import com.canvasvibe.app.ui.buyer.tracking.OrderTrackingScreen
 import com.canvasvibe.app.ui.seller.addproduct.AddProductScreen
@@ -152,7 +154,27 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() },
                 onLogout = logout,
                 onHomeClick = toBuyerHome,
-                onCartClick = toBuyerCart
+                onCartClick = toBuyerCart,
+                onOrdersClick = { navController.navigate(Screen.BuyerOrders.route) },
+                onFavoritesClick = { navController.navigate(Screen.BuyerFavorites.route) }
+            )
+        }
+
+        composable(Screen.BuyerOrders.route) {
+            BuyerOrdersScreen(
+                onBack = { navController.popBackStack() },
+                onOrderClick = { orderId ->
+                    navController.navigate(Screen.OrderTracking.createRoute(orderId))
+                }
+            )
+        }
+
+        composable(Screen.BuyerFavorites.route) {
+            BuyerFavoritesScreen(
+                onBack = { navController.popBackStack() },
+                onProductClick = { productId ->
+                    navController.navigate(Screen.ProductDetail.createRoute(productId))
+                }
             )
         }
 

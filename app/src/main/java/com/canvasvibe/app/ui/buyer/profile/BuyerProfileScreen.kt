@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -65,7 +64,9 @@ fun BuyerProfileScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit = onBack,
     onHomeClick: () -> Unit = onBack,
-    onCartClick: () -> Unit = {}
+    onCartClick: () -> Unit = {},
+    onOrdersClick: () -> Unit = {},
+    onFavoritesClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
@@ -122,10 +123,21 @@ fun BuyerProfileScreen(
             item {
                 ConfigGroup(
                     items = listOf(
-                        ConfigEntry(Icons.AutoMirrored.Filled.ListAlt, "Mis pedidos", subtitle = if (orderCount > 0) "$orderCount pedidos" else null),
-                        ConfigEntry(Icons.Filled.Favorite, "Favoritos"),
-                        ConfigEntry(Icons.Filled.LocationOn, "Direcciones de envío"),
-                        ConfigEntry(Icons.Filled.Payment, "Métodos de pago")
+                        ConfigEntry(
+                            icon = Icons.AutoMirrored.Filled.ListAlt,
+                            label = "Mis pedidos",
+                            subtitle = if (orderCount > 0) "$orderCount pedidos" else null,
+                            onClick = onOrdersClick
+                        ),
+                        ConfigEntry(
+                            icon = Icons.Filled.Favorite,
+                            label = "Favoritos",
+                            onClick = onFavoritesClick
+                        ),
+                        ConfigEntry(
+                            icon = Icons.Filled.LocationOn,
+                            label = "Direcciones de envío"
+                        )
                     )
                 )
             }
